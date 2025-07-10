@@ -1,0 +1,25 @@
+# Go build
+/backend/bootstrap
+/backend/bootstrap.zip
+
+# Terraform state
+/terraform/*.tfstate
+/terraform/*.tfstate.*
+
+# Node modules
+/frontend/node_modules/
+
+# Backup files
+*.bak
+
+# Misc
+.DS_Store
+*.log
+response.json
+
+# Terraform build cache and providers
+/terraform/.terraform/
+/terraform/.terraform.lock.hcl
+
+# Lambda build artifact
+/terraform/bootstrap.zip

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Strukturbild Editor</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>Strukturbild Editor</h1>
+  <div>
+    <label>Title: <input type="text" id="titleInput"></label>
+    <button id="submitBtn">Submit</button>
+  </div>
+  <pre id="status"></pre>
+
+  <div>
+    <label for="idInput">Strukturbild ID:</label>
+    <input type="text" id="idInput" placeholder="Enter ID">
+    <button id="loadBtn">Load</button>
+  </div>
+
+  <div id="renderArea" style="margin-top: 1em; display: flex; flex-wrap: wrap;"></div>
+
+  <script>
+    document.getElementById('loadBtn').addEventListener('click', async () => {
+      const id = document.getElementById('idInput').value;
+      const status = document.getElementById('status');
+      try {
+        const response = await fetch(`/struktur/${id}`);
+        const data = await response.json();
+        console.log('🎯 Loaded strukturbild:', data);
+        status.textContent = JSON.stringify(data, null, 2);
+        const renderArea = document.getElementById('renderArea');
+        renderArea.innerHTML = '';
+        data.nodes.forEach(node => {
+          const box = document.createElement('div');
+          box.textContent = node.label;
+          box.style.border = '1px solid #333';
+          box.style.padding = '0.5em';
+          box.style.margin = '0.5em';
+          box.style.background = '#eef';
+          renderArea.appendChild(box);
+        });
+      } catch (err) {
+        console.error('Failed to load strukturbild:', err);
+        status.textContent = 'Error loading strukturbild';
+      }
+    });
+  </script>
+
+</body>
+<script src="script.js"></script>
+</html>
