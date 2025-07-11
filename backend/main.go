@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/google/uuid"
 )
 
 type Node struct {
@@ -55,20 +56,50 @@ func getHandler(ctx context.Context, request events.APIGatewayProxyRequest) (eve
 	}
 	if id == "" {
 		log.Printf("❌ Could not extract ID from request")
-		return events.APIGatewayProxyResponse{StatusCode: 400, Body: "Missing ID"}, nil
+		return events.APIGatewayProxyResponse{
+			StatusCode: 400,
+			Headers: map[string]string{
+				"Access-Control-Allow-Origin":      "*",
+				"Access-Control-Allow-Headers":     "Content-Type",
+				"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
+				"Access-Control-Allow-Credentials": "true",
+				"Access-Control-Max-Age":           "86400",
+			},
+			Body: "Missing ID",
+		}, nil
 	}
 
 	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion("us-east-1"))
 	if err != nil {
 		log.Printf("❌ Failed to load AWS config: %v", err)
-		return events.APIGatewayProxyResponse{StatusCode: 500, Body: "Server config error"}, nil
+		return events.APIGatewayProxyResponse{
+			StatusCode: 500,
+			Headers: map[string]string{
+				"Access-Control-Allow-Origin":      "*",
+				"Access-Control-Allow-Headers":     "Content-Type",
+				"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
+				"Access-Control-Allow-Credentials": "true",
+				"Access-Control-Max-Age":           "86400",
+			},
+			Body: "Server config error",
+		}, nil
 	}
 	svc := dynamodb.NewFromConfig(cfg)
 
 	key, err := attributevalue.MarshalMap(map[string]string{"id": id})
 	if err != nil {
 		log.Printf("❌ Failed to marshal key: %v", err)
-		return events.APIGatewayProxyResponse{StatusCode: 500, Body: "Failed to marshal key"}, nil
+		return events.APIGatewayProxyResponse{
+			StatusCode: 500,
+			Headers: map[string]string{
+				"Access-Control-Allow-Origin":      "*",
+				"Access-Control-Allow-Headers":     "Content-Type",
+				"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
+				"Access-Control-Allow-Credentials": "true",
+				"Access-Control-Max-Age":           "86400",
+			},
+			Body: "Failed to marshal key",
+		}, nil
 	}
 
 	input := &dynamodb.GetItemInput{
@@ -79,29 +110,74 @@ func getHandler(ctx context.Context, request events.APIGatewayProxyRequest) (eve
 	result, err := svc.GetItem(ctx, input)
 	if err != nil {
 		log.Printf("❌ Failed to get item: %v", err)
-		return events.APIGatewayProxyResponse{StatusCode: 500, Body: "Failed to fetch data"}, nil
+		return events.APIGatewayProxyResponse{
+			StatusCode: 500,
+			Headers: map[string]string{
+				"Access-Control-Allow-Origin":      "*",
+				"Access-Control-Allow-Headers":     "Content-Type",
+				"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
+				"Access-Control-Allow-Credentials": "true",
+				"Access-Control-Max-Age":           "86400",
+			},
+			Body: "Failed to fetch data",
+		}, nil
 	}
 
 	if result.Item == nil {
-		return events.APIGatewayProxyResponse{StatusCode: 404, Body: "Not found"}, nil
+		return events.APIGatewayProxyResponse{
+			StatusCode: 404,
+			Headers: map[string]string{
+				"Access-Control-Allow-Origin":      "*",
+				"Access-Control-Allow-Headers":     "Content-Type",
+				"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
+				"Access-Control-Allow-Credentials": "true",
+				"Access-Control-Max-Age":           "86400",
+			},
+			Body: "Not found",
+		}, nil
 	}
 
 	var item DBItem
 	err = attributevalue.UnmarshalMap(result.Item, &item)
 	if err != nil {
 		log.Printf("❌ Failed to unmarshal item: %v", err)
-		return events.APIGatewayProxyResponse{StatusCode: 500, Body: "Failed to decode data"}, nil
+		return events.APIGatewayProxyResponse{
+			StatusCode: 500,
+			Headers: map[string]string{
+				"Access-Control-Allow-Origin":      "*",
+				"Access-Control-Allow-Headers":     "Content-Type",
+				"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
+				"Access-Control-Allow-Credentials": "true",
+				"Access-Control-Max-Age":           "86400",
+			},
+			Body: "Failed to decode data",
+		}, nil
 	}
 
 	body, err := json.Marshal(item)
 	if err != nil {
-		return events.APIGatewayProxyResponse{StatusCode: 500, Body: "Failed to encode response"}, nil
+		return events.APIGatewayProxyResponse{
+			StatusCode: 500,
+			Headers: map[string]string{
+				"Access-Control-Allow-Origin":      "*",
+				"Access-Control-Allow-Headers":     "Content-Type",
+				"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
+				"Access-Control-Allow-Credentials": "true",
+				"Access-Control-Max-Age":           "86400",
+			},
+			Body: "Failed to encode response",
+		}, nil
 	}
 
 	return events.APIGatewayProxyResponse{
 		StatusCode: 200,
 		Headers: map[string]string{
-			"Content-Type": "application/json",
+			"Content-Type":                     "application/json",
+			"Access-Control-Allow-Origin":      "*",
+			"Access-Control-Allow-Headers":     "Content-Type",
+			"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
+			"Access-Control-Allow-Credentials": "true",
+			"Access-Control-Max-Age":           "86400",
 		},
 		Body: string(body),
 	}, nil
@@ -112,7 +188,21 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	err := json.Unmarshal([]byte(request.Body), &sb)
 	if err != nil {
 		log.Printf("❌ Failed to decode JSON: %v", err)
-		return events.APIGatewayProxyResponse{StatusCode: 400, Body: "Invalid JSON"}, nil
+		return events.APIGatewayProxyResponse{
+			StatusCode: 400,
+			Headers: map[string]string{
+				"Access-Control-Allow-Origin":      "*",
+				"Access-Control-Allow-Headers":     "Content-Type",
+				"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
+				"Access-Control-Allow-Credentials": "true",
+				"Access-Control-Max-Age":           "86400",
+			},
+			Body: "Invalid JSON",
+		}, nil
+	}
+
+	if sb.ID == "" {
+		sb.ID = uuid.New().String()
 	}
 
 	log.Printf("✅ Received strukturbild title: %s with %d nodes", sb.Title, len(sb.Nodes))
@@ -120,7 +210,17 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion("us-east-1"))
 	if err != nil {
 		log.Printf("❌ Failed to load AWS config: %v", err)
-		return events.APIGatewayProxyResponse{StatusCode: 500, Body: "Server config error"}, nil
+		return events.APIGatewayProxyResponse{
+			StatusCode: 500,
+			Headers: map[string]string{
+				"Access-Control-Allow-Origin":      "*",
+				"Access-Control-Allow-Headers":     "Content-Type",
+				"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
+				"Access-Control-Allow-Credentials": "true",
+				"Access-Control-Max-Age":           "86400",
+			},
+			Body: "Server config error",
+		}, nil
 	}
 	svc := dynamodb.NewFromConfig(cfg)
 
@@ -135,7 +235,17 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	av, err := attributevalue.MarshalMap(item)
 	if err != nil {
 		log.Printf("❌ Failed to marshal item: %v", err)
-		return events.APIGatewayProxyResponse{StatusCode: 500, Body: "Server error"}, nil
+		return events.APIGatewayProxyResponse{
+			StatusCode: 500,
+			Headers: map[string]string{
+				"Access-Control-Allow-Origin":      "*",
+				"Access-Control-Allow-Headers":     "Content-Type",
+				"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
+				"Access-Control-Allow-Credentials": "true",
+				"Access-Control-Max-Age":           "86400",
+			},
+			Body: "Server error",
+		}, nil
 	}
 
 	input := &dynamodb.PutItemInput{
@@ -146,14 +256,31 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	_, err = svc.PutItem(ctx, input)
 	if err != nil {
 		log.Printf("❌ Failed to put item in DynamoDB: %v", err)
-		return events.APIGatewayProxyResponse{StatusCode: 500, Body: "Failed to save data"}, nil
+		return events.APIGatewayProxyResponse{
+			StatusCode: 500,
+			Headers: map[string]string{
+				"Access-Control-Allow-Origin":      "*",
+				"Access-Control-Allow-Headers":     "Content-Type",
+				"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
+				"Access-Control-Allow-Credentials": "true",
+				"Access-Control-Max-Age":           "86400",
+			},
+			Body: "Failed to save data",
+		}, nil
 	}
 
 	log.Printf("✅ Saved to DynamoDB successfully")
 
 	return events.APIGatewayProxyResponse{
 		StatusCode: 200,
-		Body:       "Strukturbild received successfully",
+		Headers: map[string]string{
+			"Access-Control-Allow-Origin":      "*",
+			"Access-Control-Allow-Headers":     "Content-Type",
+			"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
+			"Access-Control-Allow-Credentials": "true",
+			"Access-Control-Max-Age":           "86400",
+		},
+		Body: "Strukturbild received successfully",
 	}, nil
 }
 
@@ -169,14 +296,43 @@ func main() {
 		case method == "GET" && strings.HasPrefix(path, "/struktur/"):
 			if req.PathParameters == nil || req.PathParameters["id"] == "" {
 				log.Printf("❌ Missing ID in path parameters")
-				return events.APIGatewayProxyResponse{StatusCode: 400, Body: "Missing ID"}, nil
+				return events.APIGatewayProxyResponse{
+					StatusCode: 400,
+					Headers: map[string]string{
+						"Access-Control-Allow-Origin":      "*",
+						"Access-Control-Allow-Headers":     "Content-Type",
+						"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
+						"Access-Control-Allow-Credentials": "true",
+						"Access-Control-Max-Age":           "86400",
+					},
+					Body: "Missing ID",
+				}, nil
 			}
 			return getHandler(ctx, req)
+		case method == "OPTIONS":
+			return events.APIGatewayProxyResponse{
+				StatusCode: 200,
+				Headers: map[string]string{
+					"Access-Control-Allow-Origin":      "*",
+					"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
+					"Access-Control-Allow-Headers":     "Content-Type",
+					"Access-Control-Allow-Credentials": "true",
+					"Access-Control-Max-Age":           "86400",
+				},
+				Body: "",
+			}, nil
 		default:
 			log.Printf("⚠️ Unexpected method/path: %s %s", method, path)
 			return events.APIGatewayProxyResponse{
 				StatusCode: 404,
-				Body:       "Not Found",
+				Headers: map[string]string{
+					"Access-Control-Allow-Origin":      "*",
+					"Access-Control-Allow-Headers":     "Content-Type",
+					"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
+					"Access-Control-Allow-Credentials": "true",
+					"Access-Control-Max-Age":           "86400",
+				},
+				Body: "Not Found",
 			}, nil
 		}
 	})

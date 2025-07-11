@@ -23,3 +23,27 @@ response.json
 
 # Lambda build artifact
 /terraform/bootstrap.zip
+# Go build output
+/backend/bootstrap
+/backend/bootstrap.zip
+
+# Terraform state and build cache
+/terraform/*.tfstate
+/terraform/*.tfstate.*
+/terraform/.terraform/
+/terraform/bootstrap.zip
+/terraform/.terraform.lock.hcl
+
+# Node modules and npm artifacts
+/frontend/node_modules/
+/frontend/package-lock.json
+
+# Backup and log files
+*.bak
+*.log
+
+# macOS system files
+.DS_Store
+
+# Misc
+response.json

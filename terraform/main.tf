@@ -45,6 +45,14 @@ resource "aws_lambda_function" "strukturbild_api" {
 resource "aws_apigatewayv2_api" "http_api" {
   name          = "strukturbild-http-api"
   protocol_type = "HTTP"
+  cors_configuration {
+    allow_origins     = ["*"]
+    allow_methods     = ["OPTIONS", "GET", "POST"]
+    allow_headers     = ["content-type"]
+    expose_headers    = []
+    max_age           = 86400
+    allow_credentials = false
+  }
 }
 
 resource "aws_lambda_permission" "apigw" {
@@ -89,9 +97,9 @@ resource "aws_apigatewayv2_deployment" "deployment" {
 }
 
 resource "aws_apigatewayv2_stage" "default" {
-  api_id        = aws_apigatewayv2_api.http_api.id
-  name          = "$default"
-  auto_deploy   = true
+  api_id      = aws_apigatewayv2_api.http_api.id
+  name        = "$default"
+  auto_deploy = true
 }
 
 output "api_url" {
