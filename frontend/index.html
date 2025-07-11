@@ -6,48 +6,57 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>Strukturbild Editor</h1>
   <div>
-    <label>Title: <input type="text" id="titleInput"></label>
-    <button id="submitBtn">Submit</button>
+    <label for="personIdInput">Person ID:</label>
+    <input type="text" id="personIdInput" placeholder="Enter Person ID">
+    <button id="loadBtn" type="button">Load Person Data</button>
   </div>
+  <h1>Strukturbild Editor</h1>
+  <!-- Updated vertical form layout for node/edge entry -->
+  <form id="elementForm" style="display: flex; flex-direction: column; gap: 0.5em; max-width: 350px;">
+    <label>ID (auto-generated): <input type="text" id="generatedId" disabled></label>
+    <label>Person ID (required): <input type="text" id="elementPersonIdInput" required></label>
+    <label>Label: <input type="text" id="labelInput"></label>
+    <label>
+      Type:
+      <select id="typeSelect" onchange="toggleTypeFields()">
+        <option value="node">Node</option>
+        <option value="edge">Edge</option>
+      </select>
+    </label>
+    <div id="edgeFields" style="display: none; flex-direction: column; gap: 0.5em; width: 100%;">
+      <label style="display: flex; justify-content: space-between; align-items: center;">
+        From (for edges): <input type="text" id="fromInput" style="flex-grow: 1; margin-left: 0.5em;">
+      </label>
+      <label style="display: flex; justify-content: space-between; align-items: center;">
+        To (for edges): <input type="text" id="toInput" style="flex-grow: 1; margin-left: 0.5em;">
+      </label>
+    </div>
+    <div id="nodeFields" style="display: none; flex-direction: column; gap: 0.5em; width: 100%;">
+      <label style="display: flex; justify-content: space-between; align-items: center;">
+        X (for nodes): <input type="number" id="xInput" style="flex-grow: 1; margin-left: 0.5em;">
+      </label>
+      <label style="display: flex; justify-content: space-between; align-items: center;">
+        Y (for nodes): <input type="number" id="yInput" style="flex-grow: 1; margin-left: 0.5em;">
+      </label>
+    </div>
+    <button id="submitElementBtn" type="submit">Submit Node/Edge</button>
+  </form>
   <pre id="status"></pre>
 
-  <div>
-    <label for="idInput">Strukturbild ID:</label>
-    <input type="text" id="idInput" placeholder="Enter ID">
-    <button id="loadBtn">Load</button>
-  </div>
 
   <div id="renderArea" style="margin-top: 1em; display: flex; flex-wrap: wrap;"></div>
 
-  <script>
-    document.getElementById('loadBtn').addEventListener('click', async () => {
-      const id = document.getElementById('idInput').value;
-      const status = document.getElementById('status');
-      try {
-        const response = await fetch(`/struktur/${id}`);
-        const data = await response.json();
-        console.log('🎯 Loaded strukturbild:', data);
-        status.textContent = JSON.stringify(data, null, 2);
-        const renderArea = document.getElementById('renderArea');
-        renderArea.innerHTML = '';
-        data.nodes.forEach(node => {
-          const box = document.createElement('div');
-          box.textContent = node.label;
-          box.style.border = '1px solid #333';
-          box.style.padding = '0.5em';
-          box.style.margin = '0.5em';
-          box.style.background = '#eef';
-          renderArea.appendChild(box);
-        });
-      } catch (err) {
-        console.error('Failed to load strukturbild:', err);
-        status.textContent = 'Error loading strukturbild';
-      }
-    });
-  </script>
+<script>
+  function toggleTypeFields() {
+    const type = document.getElementById('typeSelect').value;
+    document.getElementById('edgeFields').style.display = type === 'edge' ? 'block' : 'none';
+    document.getElementById('nodeFields').style.display = type === 'node' ? 'block' : 'none';
+  }
 
-</body>
+  // Initial toggle on page load
+  window.addEventListener('DOMContentLoaded', toggleTypeFields);
+</script>
 <script src="script.js"></script>
+</body>
 </html>

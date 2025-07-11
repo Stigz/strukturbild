@@ -10,9 +10,15 @@ import (
 
 func TestHandler(t *testing.T) {
 	testPayload := Strukturbild{
-		ID:    "test123",
-		Title: "Test Structure",
-		Nodes: []Node{{ID: "1", Label: "A", X: 0, Y: 0}},
+		ID:       "test123",
+		PersonID: "testperson",
+		Nodes: []Node{{
+			ID:       "1",
+			Label:    "A",
+			X:        0,
+			Y:        0,
+			PersonID: "testperson",
+		}},
 		Edges: []Edge{{From: "1", To: "1", Label: "loop"}},
 	}
 
@@ -32,9 +38,15 @@ func TestHandler(t *testing.T) {
 func TestGetHandler(t *testing.T) {
 	testID := "gettest123"
 	testPayload := Strukturbild{
-		ID:    testID,
-		Title: "Retrieved Structure",
-		Nodes: []Node{{ID: "1", Label: "Node1", X: 10, Y: 20}},
+		ID:       testID,
+		PersonID: "testperson",
+		Nodes: []Node{{
+			ID:       "1",
+			Label:    "Node1",
+			X:        10,
+			Y:        20,
+			PersonID: "testperson",
+		}},
 		Edges: []Edge{{From: "1", To: "1", Label: "self"}},
 	}
 
@@ -66,7 +78,7 @@ func TestGetHandler(t *testing.T) {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
 
-	if returned.ID != testID || returned.Title != testPayload.Title {
+	if returned.ID != testID {
 		t.Errorf("Unexpected data: %+v", returned)
 	}
 }

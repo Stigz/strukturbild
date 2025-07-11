@@ -16,14 +16,16 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/google/uuid"
 )
 
 type Node struct {
-	ID    string `json:"id"`
-	Label string `json:"label"`
-	X     int    `json:"x"`
-	Y     int    `json:"y"`
+	ID       string `json:"id"`
+	Label    string `json:"label"`
+	X        int    `json:"x"` // X position for layout
+	Y        int    `json:"y"` // Y position for layout
+	PersonID string `json:"personId"`
 }
 
 type Edge struct {
@@ -33,17 +35,22 @@ type Edge struct {
 }
 
 type Strukturbild struct {
-	ID    string `json:"id" dynamodbav:"id"` // Add this line
-	Title string `json:"title"`
-	Nodes []Node `json:"nodes"`
-	Edges []Edge `json:"edges"`
+	ID       string `json:"id" dynamodbav:"id"` // Add this line
+	Nodes    []Node `json:"nodes"`
+	Edges    []Edge `json:"edges"`
+	PersonID string `json:"personId"`
 }
+
 type DBItem struct {
 	ID        string `json:"id" dynamodbav:"id"`
-	Title     string `json:"title"`
-	Timestamp string `json:"timestamp"`
-	Nodes     []Node `json:"nodes"`
-	Edges     []Edge `json:"edges"`
+	PersonID  string `json:"personId" dynamodbav:"personId"`
+	Label     string `json:"label" dynamodbav:"label"`
+	IsNode    bool   `json:"isNode" dynamodbav:"isNode"`
+	X         int    `json:"x,omitempty" dynamodbav:"x,omitempty"`
+	Y         int    `json:"y,omitempty" dynamodbav:"y,omitempty"`
+	From      string `json:"from,omitempty" dynamodbav:"from,omitempty"`
+	To        string `json:"to,omitempty" dynamodbav:"to,omitempty"`
+	Timestamp string `json:"timestamp" dynamodbav:"timestamp"`
 }
 
 func getHandler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
@@ -86,30 +93,18 @@ func getHandler(ctx context.Context, request events.APIGatewayProxyRequest) (eve
 	}
 	svc := dynamodb.NewFromConfig(cfg)
 
-	key, err := attributevalue.MarshalMap(map[string]string{"id": id})
-	if err != nil {
-		log.Printf("❌ Failed to marshal key: %v", err)
-		return events.APIGatewayProxyResponse{
-			StatusCode: 500,
-			Headers: map[string]string{
-				"Access-Control-Allow-Origin":      "*",
-				"Access-Control-Allow-Headers":     "Content-Type",
-				"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
-				"Access-Control-Allow-Credentials": "true",
-				"Access-Control-Max-Age":           "86400",
-			},
-			Body: "Failed to marshal key",
-		}, nil
+	// Scan for all items with personId = id
+	input := &dynamodb.QueryInput{
+		TableName:              aws.String("strukturbild_data"),
+		KeyConditionExpression: aws.String("personId = :pid"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":pid": &types.AttributeValueMemberS{Value: id},
+		},
 	}
 
-	input := &dynamodb.GetItemInput{
-		TableName: aws.String("strukturbild_data"),
-		Key:       key,
-	}
-
-	result, err := svc.GetItem(ctx, input)
+	result, err := svc.Query(ctx, input)
 	if err != nil {
-		log.Printf("❌ Failed to get item: %v", err)
+		log.Printf("❌ Failed to query items: %v", err)
 		return events.APIGatewayProxyResponse{
 			StatusCode: 500,
 			Headers: map[string]string{
@@ -123,7 +118,7 @@ func getHandler(ctx context.Context, request events.APIGatewayProxyRequest) (eve
 		}, nil
 	}
 
-	if result.Item == nil {
+	if len(result.Items) == 0 {
 		return events.APIGatewayProxyResponse{
 			StatusCode: 404,
 			Headers: map[string]string{
@@ -137,24 +132,40 @@ func getHandler(ctx context.Context, request events.APIGatewayProxyRequest) (eve
 		}, nil
 	}
 
-	var item DBItem
-	err = attributevalue.UnmarshalMap(result.Item, &item)
-	if err != nil {
-		log.Printf("❌ Failed to unmarshal item: %v", err)
-		return events.APIGatewayProxyResponse{
-			StatusCode: 500,
-			Headers: map[string]string{
-				"Access-Control-Allow-Origin":      "*",
-				"Access-Control-Allow-Headers":     "Content-Type",
-				"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
-				"Access-Control-Allow-Credentials": "true",
-				"Access-Control-Max-Age":           "86400",
-			},
-			Body: "Failed to decode data",
-		}, nil
+	var nodes []Node
+	var edges []Edge
+	for _, itemMap := range result.Items {
+		var item DBItem
+		err = attributevalue.UnmarshalMap(itemMap, &item)
+		if err != nil {
+			log.Printf("❌ Failed to unmarshal item: %v", err)
+			continue
+		}
+		if item.IsNode {
+			nodes = append(nodes, Node{
+				ID:       item.ID,
+				Label:    item.Label,
+				X:        item.X,
+				Y:        item.Y,
+				PersonID: item.PersonID,
+			})
+		} else {
+			edges = append(edges, Edge{
+				From:  item.From,
+				To:    item.To,
+				Label: item.Label,
+			})
+		}
 	}
 
-	body, err := json.Marshal(item)
+	sb := Strukturbild{
+		ID:       "",
+		Nodes:    nodes,
+		Edges:    edges,
+		PersonID: id,
+	}
+
+	body, err := json.Marshal(sb)
 	if err != nil {
 		return events.APIGatewayProxyResponse{
 			StatusCode: 500,
@@ -205,7 +216,22 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		sb.ID = uuid.New().String()
 	}
 
-	log.Printf("✅ Received strukturbild title: %s with %d nodes", sb.Title, len(sb.Nodes))
+	if sb.PersonID == "" {
+		log.Printf("❌ Missing personId")
+		return events.APIGatewayProxyResponse{
+			StatusCode: 400,
+			Headers: map[string]string{
+				"Access-Control-Allow-Origin":      "*",
+				"Access-Control-Allow-Headers":     "Content-Type",
+				"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
+				"Access-Control-Allow-Credentials": "true",
+				"Access-Control-Max-Age":           "86400",
+			},
+			Body: "Missing personId",
+		}, nil
+	}
+
+	log.Printf("✅ Received strukturbild for person: %s with %d nodes", sb.PersonID, len(sb.Nodes))
 
 	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion("us-east-1"))
 	if err != nil {
@@ -224,49 +250,52 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	}
 	svc := dynamodb.NewFromConfig(cfg)
 
-	item := DBItem{
-		ID:        sb.ID,
-		Title:     sb.Title,
-		Timestamp: time.Now().Format(time.RFC3339),
-		Nodes:     sb.Nodes,
-		Edges:     sb.Edges,
+	var dbItems []DBItem
+
+	for i := range sb.Nodes {
+		if sb.Nodes[i].ID == "" {
+			sb.Nodes[i].ID = uuid.New().String()
+		}
+		node := sb.Nodes[i]
+		dbItems = append(dbItems, DBItem{
+			ID:        node.ID,
+			PersonID:  node.PersonID,
+			Label:     node.Label,
+			IsNode:    true,
+			X:         node.X,
+			Y:         node.Y,
+			Timestamp: time.Now().Format(time.RFC3339),
+		})
 	}
 
-	av, err := attributevalue.MarshalMap(item)
-	if err != nil {
-		log.Printf("❌ Failed to marshal item: %v", err)
-		return events.APIGatewayProxyResponse{
-			StatusCode: 500,
-			Headers: map[string]string{
-				"Access-Control-Allow-Origin":      "*",
-				"Access-Control-Allow-Headers":     "Content-Type",
-				"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
-				"Access-Control-Allow-Credentials": "true",
-				"Access-Control-Max-Age":           "86400",
-			},
-			Body: "Server error",
-		}, nil
+	for _, edge := range sb.Edges {
+		dbItems = append(dbItems, DBItem{
+			ID:        uuid.New().String(),
+			PersonID:  sb.PersonID,
+			Label:     edge.Label,
+			IsNode:    false,
+			From:      edge.From,
+			To:        edge.To,
+			Timestamp: time.Now().Format(time.RFC3339),
+		})
 	}
 
-	input := &dynamodb.PutItemInput{
-		TableName: aws.String("strukturbild_data"),
-		Item:      av,
-	}
+	for _, item := range dbItems {
+		av, err := attributevalue.MarshalMap(item)
+		if err != nil {
+			log.Printf("❌ Failed to marshal item: %v", err)
+			continue
+		}
 
-	_, err = svc.PutItem(ctx, input)
-	if err != nil {
-		log.Printf("❌ Failed to put item in DynamoDB: %v", err)
-		return events.APIGatewayProxyResponse{
-			StatusCode: 500,
-			Headers: map[string]string{
-				"Access-Control-Allow-Origin":      "*",
-				"Access-Control-Allow-Headers":     "Content-Type",
-				"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
-				"Access-Control-Allow-Credentials": "true",
-				"Access-Control-Max-Age":           "86400",
-			},
-			Body: "Failed to save data",
-		}, nil
+		input := &dynamodb.PutItemInput{
+			TableName: aws.String("strukturbild_data"),
+			Item:      av,
+		}
+
+		_, err = svc.PutItem(ctx, input)
+		if err != nil {
+			log.Printf("❌ Failed to put item in DynamoDB: %v", err)
+		}
 	}
 
 	log.Printf("✅ Saved to DynamoDB successfully")
