@@ -1,5 +1,5 @@
 # Always run these targets (phony)
-.PHONY: all build zip deploy frontend url test clean local logs invoke
+.PHONY: all build zip deploy frontend url test clean stop-local run-local fetch-local-data
 # Makefile for deploying Go Lambda with Terraform
 
 LAMBDA_NAME=strukturbild-api
@@ -41,18 +41,56 @@ clean:
 	rm -f backend/$(GO_BINARY)
 	rm -f terraform/$(ZIP_NAME)
 
-local:
-	cd backend && go build -o bootstrap main.go && ./bootstrap
+stop-local:
+	@echo "Stopping DynamoDB Local and frontend server..."
+	-kill `cat dynamodb.pid` || true
+	-kill `cat frontend.pid` || true
+	rm -f dynamodb.pid frontend.pid
 
-logs:
-	aws logs tail /aws/lambda/$(LAMBDA_NAME) --follow --region us-east-1
+run-local: stop-local
+	@echo "Killing anything on ports 8000, 8080..."
+	-lsof -ti :8000 | xargs kill -9 || true
+	-lsof -ti :8080 | xargs kill -9 || true
+	@echo "Starting DynamoDB Local with sharedDb..."
+	java -Djava.library.path=./dynamodb-local/DynamoDBLocal_lib \
+	     -jar ./dynamodb-local/DynamoDBLocal.jar \
+	     -inMemory -sharedDb -port 8000 \
+	     & echo $$! > dynamodb.pid
+	sleep 5
+	@echo "Waiting for DynamoDB Local to be ready..."
+	@i=0; until aws dynamodb list-tables --endpoint-url http://localhost:8000 --no-cli-pager | grep strukturbild_data || [ $$i -ge 20 ]; do sleep 1; i=$$(($$i+1)); done
+	@echo "Creating table if not exists..."
+	aws dynamodb create-table --no-cli-pager \
+		--table-name strukturbild_data \
+		--attribute-definitions AttributeName=personId,AttributeType=S AttributeName=id,AttributeType=S \
+		--key-schema AttributeName=personId,KeyType=HASH AttributeName=id,KeyType=RANGE \
+		--billing-mode PAY_PER_REQUEST \
+		--endpoint-url http://localhost:8000 || true
+	@echo "Waiting for table to be ACTIVE..."
+	@i=0; until [ "$$(aws dynamodb describe-table --table-name strukturbild_data --endpoint-url http://localhost:8000 --no-cli-pager --query 'Table.TableStatus' --output text)" = "ACTIVE" ] || [ $$i -ge 20 ]; do sleep 1; i=$$(($$i+1)); done
+	@echo "Confirmed table strukturbild_data is active."
+	@echo "Inserting example data..."
+	aws dynamodb put-item --no-cli-pager \
+		--table-name strukturbild_data \
+		--item '{"personId": {"S": "alice"}, "id": {"S": "node1"}, "label": {"S": "Start"}, "isNode": {"BOOL": true}, "x": {"N": "10"}, "y": {"N": "20"}, "timestamp": {"S": "2025-01-01T00:00:00Z"}}' \
+		--endpoint-url http://localhost:8000
+	@echo "Injecting LOCAL API URL into config.js..."
+	cd frontend && echo "window.STRUKTURBILD_API_URL = 'http://localhost:3000';" > config.local.js
+	cp frontend/config.local.js frontend/config.js
+	@echo "Checking and killing existing frontend on port 8080..."
+	-lsof -ti :8080 | xargs kill -9 || true
+	@echo "Starting local frontend at http://localhost:8080 ..."
+	cd frontend && python3 -m http.server 8080 > /dev/null 2>&1 & echo $$! > ../frontend.pid
+	@echo "Starting local Go API on http://localhost:3000 ..."
+	LOCAL=true go run ./backend
 
-invoke:
-	aws lambda invoke --function-name $(LAMBDA_NAME) --payload '{}' response.json --region us-east-1 && cat response.json
 
-.PHONY: frontend
+fetch-local-data:
+	aws dynamodb scan --table-name strukturbild_data --endpoint-url http://localhost:8000 --output json --no-cli-pager > local-data.json
+
 frontend:
-	@echo "🛠️  Injecting API URL into script.js..."
-	cd frontend && sed -i.bak "s|__API_URL__|$$(cd ../terraform && terraform output -raw api_url)|g" script.js
+	@echo "🛠️  Injecting API URL into config.js..."
+	cd frontend && echo "window.STRUKTURBILD_API_URL = '$(shell cd terraform && terraform output -raw api_url)';" > config.prod.js
+	cp frontend/config.prod.js frontend/config.js
 	@echo "☁️  Syncing static files to S3..."
 	aws s3 sync frontend/ s3://$(BUCKET) --delete

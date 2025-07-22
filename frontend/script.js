@@ -1,5 +1,4 @@
-const API_BASE_URL = "https://qhbbu19wz1.execute-api.us-east-1.amazonaws.com";
-
+const API_BASE_URL = window.STRUKTURBILD_API_URL || "http://localhost:3000";
 document.addEventListener("DOMContentLoaded", () => {
   const form = document.getElementById("elementForm");
   const loadBtn = document.getElementById("loadBtn");

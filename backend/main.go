@@ -1,12 +1,11 @@
-// This is a basic Go backend for serving Strukturbild data via a REST API.
-// It integrates with AWS (S3 for storage) and can be deployed cheaply using AWS Lambda + API Gateway + Terraform.
-
 package main
 
 import (
 	"context"
 	"encoding/json"
 	"log"
+	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -14,11 +13,14 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/google/uuid"
 )
+
+var svc *dynamodb.Client
 
 type Node struct {
 	ID       string `json:"id"`
@@ -65,33 +67,12 @@ func getHandler(ctx context.Context, request events.APIGatewayProxyRequest) (eve
 		log.Printf("❌ Could not extract ID from request")
 		return events.APIGatewayProxyResponse{
 			StatusCode: 400,
-			Headers: map[string]string{
-				"Access-Control-Allow-Origin":      "*",
-				"Access-Control-Allow-Headers":     "Content-Type",
-				"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
-				"Access-Control-Allow-Credentials": "true",
-				"Access-Control-Max-Age":           "86400",
-			},
-			Body: "Missing ID",
+			Headers:    corsHeaders(),
+			Body:       "Missing ID",
 		}, nil
 	}
 
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion("us-east-1"))
-	if err != nil {
-		log.Printf("❌ Failed to load AWS config: %v", err)
-		return events.APIGatewayProxyResponse{
-			StatusCode: 500,
-			Headers: map[string]string{
-				"Access-Control-Allow-Origin":      "*",
-				"Access-Control-Allow-Headers":     "Content-Type",
-				"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
-				"Access-Control-Allow-Credentials": "true",
-				"Access-Control-Max-Age":           "86400",
-			},
-			Body: "Server config error",
-		}, nil
-	}
-	svc := dynamodb.NewFromConfig(cfg)
+	// Use global svc directly
 
 	// Scan for all items with personId = id
 	input := &dynamodb.QueryInput{
@@ -107,28 +88,16 @@ func getHandler(ctx context.Context, request events.APIGatewayProxyRequest) (eve
 		log.Printf("❌ Failed to query items: %v", err)
 		return events.APIGatewayProxyResponse{
 			StatusCode: 500,
-			Headers: map[string]string{
-				"Access-Control-Allow-Origin":      "*",
-				"Access-Control-Allow-Headers":     "Content-Type",
-				"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
-				"Access-Control-Allow-Credentials": "true",
-				"Access-Control-Max-Age":           "86400",
-			},
-			Body: "Failed to fetch data",
+			Headers:    corsHeaders(),
+			Body:       "Failed to fetch data",
 		}, nil
 	}
 
 	if len(result.Items) == 0 {
 		return events.APIGatewayProxyResponse{
 			StatusCode: 404,
-			Headers: map[string]string{
-				"Access-Control-Allow-Origin":      "*",
-				"Access-Control-Allow-Headers":     "Content-Type",
-				"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
-				"Access-Control-Allow-Credentials": "true",
-				"Access-Control-Max-Age":           "86400",
-			},
-			Body: "Not found",
+			Headers:    corsHeaders(),
+			Body:       "Not found",
 		}, nil
 	}
 
@@ -169,14 +138,8 @@ func getHandler(ctx context.Context, request events.APIGatewayProxyRequest) (eve
 	if err != nil {
 		return events.APIGatewayProxyResponse{
 			StatusCode: 500,
-			Headers: map[string]string{
-				"Access-Control-Allow-Origin":      "*",
-				"Access-Control-Allow-Headers":     "Content-Type",
-				"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
-				"Access-Control-Allow-Credentials": "true",
-				"Access-Control-Max-Age":           "86400",
-			},
-			Body: "Failed to encode response",
+			Headers:    corsHeaders(),
+			Body:       "Failed to encode response",
 		}, nil
 	}
 
@@ -201,14 +164,8 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		log.Printf("❌ Failed to decode JSON: %v", err)
 		return events.APIGatewayProxyResponse{
 			StatusCode: 400,
-			Headers: map[string]string{
-				"Access-Control-Allow-Origin":      "*",
-				"Access-Control-Allow-Headers":     "Content-Type",
-				"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
-				"Access-Control-Allow-Credentials": "true",
-				"Access-Control-Max-Age":           "86400",
-			},
-			Body: "Invalid JSON",
+			Headers:    corsHeaders(),
+			Body:       "Invalid JSON",
 		}, nil
 	}
 
@@ -220,35 +177,14 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		log.Printf("❌ Missing personId")
 		return events.APIGatewayProxyResponse{
 			StatusCode: 400,
-			Headers: map[string]string{
-				"Access-Control-Allow-Origin":      "*",
-				"Access-Control-Allow-Headers":     "Content-Type",
-				"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
-				"Access-Control-Allow-Credentials": "true",
-				"Access-Control-Max-Age":           "86400",
-			},
-			Body: "Missing personId",
+			Headers:    corsHeaders(),
+			Body:       "Missing personId",
 		}, nil
 	}
 
 	log.Printf("✅ Received strukturbild for person: %s with %d nodes", sb.PersonID, len(sb.Nodes))
 
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion("us-east-1"))
-	if err != nil {
-		log.Printf("❌ Failed to load AWS config: %v", err)
-		return events.APIGatewayProxyResponse{
-			StatusCode: 500,
-			Headers: map[string]string{
-				"Access-Control-Allow-Origin":      "*",
-				"Access-Control-Allow-Headers":     "Content-Type",
-				"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
-				"Access-Control-Allow-Credentials": "true",
-				"Access-Control-Max-Age":           "86400",
-			},
-			Body: "Server config error",
-		}, nil
-	}
-	svc := dynamodb.NewFromConfig(cfg)
+	// Use global svc directly
 
 	var dbItems []DBItem
 
@@ -302,67 +238,134 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 
 	return events.APIGatewayProxyResponse{
 		StatusCode: 200,
-		Headers: map[string]string{
-			"Access-Control-Allow-Origin":      "*",
-			"Access-Control-Allow-Headers":     "Content-Type",
-			"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
-			"Access-Control-Allow-Credentials": "true",
-			"Access-Control-Max-Age":           "86400",
-		},
-		Body: "Strukturbild received successfully",
+		Headers:    corsHeaders(),
+		Body:       "Strukturbild received successfully",
 	}, nil
 }
 
-func main() {
-	lambda.Start(func(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
-		method := req.HTTPMethod
-		path := req.Path
-		log.Printf("🪵 Method: %s, Path: %s", method, path)
+func handlerHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	w.Header().Set("Access-Control-Allow-Methods", "OPTIONS,GET,POST")
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	var body map[string]interface{}
+	json.NewDecoder(r.Body).Decode(&body)
+	jsonBytes, _ := json.Marshal(body)
 
-		switch {
-		case method == "POST" && path == "/submit":
-			return handler(ctx, req)
-		case method == "GET" && strings.HasPrefix(path, "/struktur/"):
-			if req.PathParameters == nil || req.PathParameters["id"] == "" {
-				log.Printf("❌ Missing ID in path parameters")
-				return events.APIGatewayProxyResponse{
-					StatusCode: 400,
-					Headers: map[string]string{
-						"Access-Control-Allow-Origin":      "*",
-						"Access-Control-Allow-Headers":     "Content-Type",
-						"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
-						"Access-Control-Allow-Credentials": "true",
-						"Access-Control-Max-Age":           "86400",
-					},
-					Body: "Missing ID",
-				}, nil
-			}
-			return getHandler(ctx, req)
-		case method == "OPTIONS":
-			return events.APIGatewayProxyResponse{
-				StatusCode: 200,
-				Headers: map[string]string{
-					"Access-Control-Allow-Origin":      "*",
-					"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
-					"Access-Control-Allow-Headers":     "Content-Type",
-					"Access-Control-Allow-Credentials": "true",
-					"Access-Control-Max-Age":           "86400",
-				},
-				Body: "",
-			}, nil
-		default:
-			log.Printf("⚠️ Unexpected method/path: %s %s", method, path)
-			return events.APIGatewayProxyResponse{
-				StatusCode: 404,
-				Headers: map[string]string{
-					"Access-Control-Allow-Origin":      "*",
-					"Access-Control-Allow-Headers":     "Content-Type",
-					"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
-					"Access-Control-Allow-Credentials": "true",
-					"Access-Control-Max-Age":           "86400",
-				},
-				Body: "Not Found",
-			}, nil
-		}
+	resp, _ := handler(context.Background(), events.APIGatewayProxyRequest{
+		HTTPMethod: "POST",
+		Path:       "/submit",
+		Body:       string(jsonBytes),
 	})
+	w.WriteHeader(resp.StatusCode)
+	w.Write([]byte(resp.Body))
+}
+
+func getHandlerHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	w.Header().Set("Access-Control-Allow-Methods", "OPTIONS,GET,POST")
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	id := strings.TrimPrefix(r.URL.Path, "/struktur/")
+	resp, _ := getHandler(context.Background(), events.APIGatewayProxyRequest{
+		HTTPMethod:     "GET",
+		Path:           "/struktur/" + id,
+		PathParameters: map[string]string{"id": id},
+	})
+	w.WriteHeader(resp.StatusCode)
+	w.Write([]byte(resp.Body))
+}
+
+func initializeDynamoDB(ctx context.Context) *dynamodb.Client {
+	var cfg aws.Config
+	var err error
+
+	if os.Getenv("LOCAL") == "true" {
+		cfg, err = config.LoadDefaultConfig(ctx,
+			config.WithRegion("us-east-1"),
+			config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
+				"fakeMyKeyId", "fakeSecretAccessKey", "fakeToken",
+			)),
+			config.WithEndpointResolver(aws.EndpointResolverFunc(
+				func(service, region string) (aws.Endpoint, error) {
+					if service == dynamodb.ServiceID {
+						return aws.Endpoint{
+							URL:           "http://localhost:8000",
+							SigningRegion: "us-east-1",
+						}, nil
+					}
+					return aws.Endpoint{}, &aws.EndpointNotFoundError{}
+				},
+			)),
+		)
+	} else {
+		cfg, err = config.LoadDefaultConfig(ctx)
+	}
+	if err != nil {
+		log.Fatalf("Failed to load AWS config: %v", err)
+	}
+	log.Println("✅ DynamoDB client initialized.")
+	return dynamodb.NewFromConfig(cfg)
+}
+
+func runHTTPServer() {
+	log.Println("✅ Running HTTP server on :3000 (LOCAL)")
+	http.HandleFunc("/submit", handlerHTTP)
+	http.HandleFunc("/struktur/", getHandlerHTTP)
+	log.Fatal(http.ListenAndServe(":3000", nil))
+}
+
+func runLambda() {
+	lambda.Start(lambdaHandler)
+}
+
+func lambdaHandler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	method := req.HTTPMethod
+	path := req.Path
+	log.Printf("🪵 Method: %s, Path: %s", method, path)
+
+	switch {
+	case method == "POST" && path == "/submit":
+		return handler(ctx, req)
+	case method == "GET" && strings.HasPrefix(path, "/struktur/"):
+		return getHandler(ctx, req)
+	case method == "OPTIONS":
+		return events.APIGatewayProxyResponse{
+			StatusCode: 200,
+			Headers:    corsHeaders(),
+			Body:       "",
+		}, nil
+	default:
+		return events.APIGatewayProxyResponse{
+			StatusCode: 404,
+			Headers:    corsHeaders(),
+			Body:       "Not Found",
+		}, nil
+	}
+}
+
+func corsHeaders() map[string]string {
+	return map[string]string{
+		"Access-Control-Allow-Origin":      "*",
+		"Access-Control-Allow-Headers":     "Content-Type",
+		"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
+		"Access-Control-Allow-Credentials": "true",
+		"Access-Control-Max-Age":           "86400",
+	}
+}
+
+func main() {
+	svc = initializeDynamoDB(context.TODO())
+
+	if os.Getenv("LOCAL") == "true" {
+		runHTTPServer()
+	} else {
+		runLambda()
+	}
 }
