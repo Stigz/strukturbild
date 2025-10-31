@@ -47,8 +47,15 @@ resource "aws_apigatewayv2_api" "http_api" {
   protocol_type = "HTTP"
   cors_configuration {
     allow_origins     = ["*"]
-    allow_methods     = ["OPTIONS", "GET", "POST"]
-    allow_headers     = ["content-type"]
+    allow_methods     = ["OPTIONS", "GET", "POST", "DELETE"]
+    allow_headers     = [
+      "content-type",
+      "authorization",
+      "x-requested-with",
+      "x-amz-date",
+      "x-api-key",
+      "x-amz-security-token"
+    ]
     expose_headers    = []
     max_age           = 86400
     allow_credentials = false
@@ -93,7 +100,14 @@ resource "aws_apigatewayv2_deployment" "deployment" {
     aws_apigatewayv2_integration.lambda_integration,
     aws_apigatewayv2_route.submit_route,
     aws_apigatewayv2_route.get_route,
+    aws_apigatewayv2_route.delete_route,
   ]
+}
+resource "aws_apigatewayv2_route" "delete_route" {
+  api_id             = aws_apigatewayv2_api.http_api.id
+  route_key          = "DELETE /struktur/{personId}/{nodeId}"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  authorization_type = "NONE"
 }
 
 resource "aws_apigatewayv2_stage" "default" {
@@ -202,7 +216,8 @@ resource "aws_iam_policy" "dynamodb_access" {
         "dynamodb:PutItem",
         "dynamodb:UpdateItem",
         "dynamodb:GetItem",
-        "dynamodb:Query"
+        "dynamodb:Query",
+        "dynamodb:DeleteItem"
       ],
       Effect   = "Allow",
       Resource = aws_dynamodb_table.struktur_data.arn

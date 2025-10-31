@@ -4,64 +4,71 @@
   <meta charset="UTF-8">
   <title>Strukturbild Editor</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://unpkg.com/cytoscape-context-menus/cytoscape-context-menus.css" />
 </head>
 <body>
-  <div>
-    <label for="personIdInput">Person ID:</label>
-    <input type="text" id="personIdInput" placeholder="Enter Person ID">
-    <button id="loadBtn" type="button">Load Person Data</button>
+
+  <div id="top-bar" class="toolbar">
+    <input type="text" id="personIdInput" placeholder="Person ID">
+    <button id="loadPersonBtn">Load</button>
+    <button id="createPersonBtn">Create New</button>
+    <button id="centerViewBtn">Center View</button>
+    <button id="connectSelectedBtn">Connect Selected</button>
+    <button id="addNodeBtn">Add Node</button>
+    <button id="deleteSelectedBtn">Delete Selected</button>
+    <select id="layoutSelect" title="Layout">
+      <option value="free">Free</option>
+      <option value="cose">COSE</option>
+      <option value="grid">Grid</option>
+      <option value="timeline">Timeline</option>
+    </select>
+    <select id="filterTypeSelect" title="Filter">
+      <option value="all">All types</option>
+      <option value="bedürfnis">bedürfnis</option>
+      <option value="trigger">trigger</option>
+      <option value="schulentwicklungsziel">schulentwicklungsziel</option>
+      <option value="barriere">barriere</option>
+      <option value="promotor">promotor</option>
+      <option value="outcome">outcome</option>
+    </select>
+    <button id="clearExpandBtn" title="Clear expansion">Clear Expand</button>
+    <button id="saveLayoutBtn">Save Layout</button>
   </div>
-  <h1>Strukturbild Editor</h1>
-  <!-- Updated vertical form layout for node/edge entry -->
-  <form id="elementForm" style="display: flex; flex-direction: column; gap: 0.5em; max-width: 350px;">
-    <label>ID (auto-generated): <input type="text" id="generatedId" disabled></label>
-    <label>Person ID (required): <input type="text" id="elementPersonIdInput" required></label>
-    <label>Label: <input type="text" id="labelInput"></label>
-    <label>
-      Type:
-      <select id="typeSelect" onchange="toggleTypeFields()">
-        <option value="node">Node</option>
-        <option value="edge">Edge</option>
-      </select>
-    </label>
-    <div id="edgeFields" style="display: none; flex-direction: column; gap: 0.5em; width: 100%;">
-      <label style="display: flex; justify-content: space-between; align-items: center;">
-        From (for edges): <input type="text" id="fromInput" style="flex-grow: 1; margin-left: 0.5em;">
-      </label>
-      <label style="display: flex; justify-content: space-between; align-items: center;">
-        To (for edges): <input type="text" id="toInput" style="flex-grow: 1; margin-left: 0.5em;">
-      </label>
-    </div>
-    <div id="nodeFields" style="display: none; flex-direction: column; gap: 0.5em; width: 100%;">
-      <label style="display: flex; justify-content: space-between; align-items: center;">
-        X (for nodes): <input type="number" id="xInput" style="flex-grow: 1; margin-left: 0.5em;">
-      </label>
-      <label style="display: flex; justify-content: space-between; align-items: center;">
-        Y (for nodes): <input type="number" id="yInput" style="flex-grow: 1; margin-left: 0.5em;">
-      </label>
-    </div>
-    <button id="submitElementBtn" type="submit">Submit Node/Edge</button>
-  </form>
+
+  <div id="cy"></div>
+
+  <aside id="inspector" class="panel hidden">
+    <h3>Inspector</h3>
+    <form id="inspectorForm">
+      <div class="row"><label>Selected:</label> <span id="inspectorSelectedType">None</span></div>
+      <div class="row"><label for="fieldLabel">Label</label><input id="fieldLabel" type="text" autocomplete="off"></div>
+      <div class="row"><label for="fieldType">Type</label>
+        <select id="fieldType">
+          <option value="">(none)</option>
+          <option value="bedürfnis">bedürfnis</option>
+          <option value="trigger">trigger</option>
+          <option value="schulentwicklungsziel">schulentwicklungsziel</option>
+          <option value="barriere">barriere</option>
+          <option value="promotor">promotor</option>
+          <option value="outcome">outcome</option>
+        </select>
+      </div>
+      <div class="row"><label for="fieldTime">Time</label><input id="fieldTime" type="date"></div>
+      <div class="row"><label for="fieldColor">Color</label><input id="fieldColor" type="text" placeholder="#88ccff or steelblue"></div>
+      <div class="row"><label for="fieldDetail">Detail</label><textarea id="fieldDetail" rows="6" placeholder="Notes / description"></textarea></div>
+      <div class="actions">
+        <button type="button" id="saveInspectorBtn">Save</button>
+        <button type="button" id="cancelInspectorBtn">Cancel</button>
+      </div>
+    </form>
+  </aside>
+
   <pre id="status"></pre>
 
-
-  <div id="renderArea" style="margin-top: 1em; display: flex; flex-wrap: wrap;"></div>
-  <div id="cy" style="width: 800px; height: 600px; border: 1px solid #ccc; margin-top: 2em;"></div>
-
-<script>
-  function toggleTypeFields() {
-    const type = document.getElementById('typeSelect').value;
-    document.getElementById('edgeFields').style.display = type === 'edge' ? 'block' : 'none';
-    document.getElementById('nodeFields').style.display = type === 'node' ? 'block' : 'none';
-  }
-
-  // Initial toggle on page load
-  window.addEventListener('DOMContentLoaded', toggleTypeFields);
-</script>
-</script>
-
+  <script src="https://unpkg.com/cytoscape@3.24.0/dist/cytoscape.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+  <script src="https://unpkg.com/cytoscape-context-menus/cytoscape-context-menus.js"></script>
   <script src="config.js"></script>
   <script src="script.js"></script>
-  <script src="https://unpkg.com/cytoscape@3.24.0/dist/cytoscape.min.js"></script>
 </body>
 </html>

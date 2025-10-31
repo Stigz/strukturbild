@@ -1,20 +1,127 @@
-body {
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
   font-family: sans-serif;
-  padding: 2em;
 }
 
-input {
-  margin-right: 1em;
+#top-bar {
+  display: flex;
+  gap: 1em;
+  padding: 0.5em;
+  align-items: center;
+  border-bottom: 1px solid #ccc;
+  background: #f9f9f9;
+}
+
+#cy {
+  flex-grow: 1;
+  width: 100%;
+  height: 100%;
 }
 
 #status {
-  margin-top: 1em;
-  background: #f2f2f2;
-  padding: 1em;
+  font-size: 0.8em;
+  color: #555;
+  padding: 0.5em;
+  border-top: 1px solid #ccc;
+  background: #f5f5f5;
+  max-height: 150px;
+  overflow-y: auto;
 }
 
-#renderArea {
-  width: 800px;
-  height: 600px;
-  border: 1px solid #ddd;
+#wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+#main-content {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* === Toolbar polish === */
+.toolbar button, .toolbar select {
+  padding: 0.4em 0.7em;
+  font-size: 0.95rem;
+  border: 1px solid #ccc;
+  background: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.toolbar button:hover { background: #f3f3f3; }
+.toolbar button:active { transform: translateY(1px); }
+.toolbar button[data-active="true"] {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37,99,235,0.15);
+}
+
+/* === Inspector side panel === */
+.panel {
+  position: fixed;
+  top: 56px; /* approximate top-bar height */
+  right: 0;
+  width: 320px;
+  height: calc(100vh - 56px);
+  background: #fff;
+  border-left: 1px solid #ddd;
+  box-shadow: -2px 0 8px rgba(0,0,0,0.04);
+  padding: 12px;
+  overflow-y: auto;
+  z-index: 1000;
+}
+.hidden { display: none; }
+
+#inspector h3 {
+  margin: 0 0 10px;
+  font-size: 1.05rem;
+}
+#inspector .row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+#inspector label { font-weight: 600; font-size: 0.9rem; }
+#inspector input[type="text"],
+#inspector input[type="date"],
+#inspector select,
+#inspector textarea {
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 0.95rem;
+}
+#inspector textarea { resize: vertical; }
+#inspector .actions { display: flex; gap: 8px; }
+#inspector .actions button {
+  padding: 0.45em 0.8em;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+#inspector .actions button:hover { background: #f3f3f3; }
+
+/* Make room for side panel when visible */
+#cy.has-panel { margin-right: 340px; }
+
+/* Responsive: stack panel on small screens */
+@media (max-width: 900px) {
+  .panel {
+    width: 100%;
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: 0;
+    height: 45vh;
+    border-left: none;
+    border-top: 1px solid #ddd;
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.04);
+  }
+  #cy.has-panel { margin-right: 0; margin-bottom: 46vh; }
 }

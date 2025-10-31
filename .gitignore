@@ -31,3 +31,5 @@ dynamodb.pid
 # Local config override
 /frontend/config.js
 /frontend/config.prod.js
+
+/Data

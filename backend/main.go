@@ -20,20 +20,36 @@ import (
 	"github.com/google/uuid"
 )
 
+func normalizePath(p string) string {
+	if idx := strings.Index(p, "/struktur/"); idx >= 0 {
+		return p[idx:]
+	}
+	if idx := strings.Index(p, "/submit"); idx >= 0 {
+		return p[idx:]
+	}
+	return p
+}
+
 var svc *dynamodb.Client
 
 type Node struct {
 	ID       string `json:"id"`
 	Label    string `json:"label"`
+	Detail   string `json:"detail,omitempty"`
+	Type     string `json:"type,omitempty"` // promoter|barrier|event|goal|actor|...
+	Time     string `json:"time,omitempty"` // ISO date or relative (T0..Tn)
+	Color    string `json:"color,omitempty"`
 	X        int    `json:"x"` // X position for layout
 	Y        int    `json:"y"` // Y position for layout
 	PersonID string `json:"personId"`
 }
 
 type Edge struct {
-	From  string `json:"from"`
-	To    string `json:"to"`
-	Label string `json:"label"`
+	From   string `json:"from"`
+	To     string `json:"to"`
+	Label  string `json:"label"`
+	Detail string `json:"detail,omitempty"`
+	Type   string `json:"type,omitempty"` // supports|blocks|causes|relates|...
 }
 
 type Strukturbild struct {
@@ -47,6 +63,10 @@ type DBItem struct {
 	ID        string `json:"id" dynamodbav:"id"`
 	PersonID  string `json:"personId" dynamodbav:"personId"`
 	Label     string `json:"label" dynamodbav:"label"`
+	Detail    string `json:"detail,omitempty" dynamodbav:"detail,omitempty"`
+	Type      string `json:"type,omitempty" dynamodbav:"type,omitempty"`
+	Time      string `json:"time,omitempty" dynamodbav:"time,omitempty"`
+	Color     string `json:"color,omitempty" dynamodbav:"color,omitempty"`
 	IsNode    bool   `json:"isNode" dynamodbav:"isNode"`
 	X         int    `json:"x,omitempty" dynamodbav:"x,omitempty"`
 	Y         int    `json:"y,omitempty" dynamodbav:"y,omitempty"`
@@ -60,8 +80,11 @@ func getHandler(ctx context.Context, request events.APIGatewayProxyRequest) (eve
 	id := ""
 	if request.PathParameters != nil && request.PathParameters["id"] != "" {
 		id = request.PathParameters["id"]
-	} else if strings.HasPrefix(request.Path, "/struktur/") {
-		id = strings.TrimPrefix(request.Path, "/struktur/")
+	} else {
+		p := normalizePath(request.Path)
+		if strings.HasPrefix(p, "/struktur/") {
+			id = strings.TrimPrefix(p, "/struktur/")
+		}
 	}
 	if id == "" {
 		log.Printf("❌ Could not extract ID from request")
@@ -114,15 +137,21 @@ func getHandler(ctx context.Context, request events.APIGatewayProxyRequest) (eve
 			nodes = append(nodes, Node{
 				ID:       item.ID,
 				Label:    item.Label,
+				Detail:   item.Detail,
+				Type:     item.Type,
+				Time:     item.Time,
+				Color:    item.Color,
 				X:        item.X,
 				Y:        item.Y,
 				PersonID: item.PersonID,
 			})
 		} else {
 			edges = append(edges, Edge{
-				From:  item.From,
-				To:    item.To,
-				Label: item.Label,
+				From:   item.From,
+				To:     item.To,
+				Label:  item.Label,
+				Detail: item.Detail,
+				Type:   item.Type,
 			})
 		}
 	}
@@ -197,6 +226,10 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 			ID:        node.ID,
 			PersonID:  node.PersonID,
 			Label:     node.Label,
+			Detail:    node.Detail,
+			Type:      node.Type,
+			Time:      node.Time,
+			Color:     node.Color,
 			IsNode:    true,
 			X:         node.X,
 			Y:         node.Y,
@@ -209,6 +242,8 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 			ID:        uuid.New().String(),
 			PersonID:  sb.PersonID,
 			Label:     edge.Label,
+			Detail:    edge.Detail,
+			Type:      edge.Type,
 			IsNode:    false,
 			From:      edge.From,
 			To:        edge.To,
@@ -244,9 +279,9 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 }
 
 func handlerHTTP(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-	w.Header().Set("Access-Control-Allow-Methods", "OPTIONS,GET,POST")
+	for k, v := range corsHeaders() {
+		w.Header().Set(k, v)
+	}
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusOK)
 		return
@@ -265,11 +300,26 @@ func handlerHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func getHandlerHTTP(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-	w.Header().Set("Access-Control-Allow-Methods", "OPTIONS,GET,POST")
+	for k, v := range corsHeaders() {
+		w.Header().Set(k, v)
+	}
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if r.Method == http.MethodDelete {
+		parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/struktur/"), "/")
+		if len(parts) == 2 {
+			resp, _ := deleteHandler(context.Background(), events.APIGatewayProxyRequest{
+				HTTPMethod:     "DELETE",
+				PathParameters: map[string]string{"personId": parts[0], "nodeId": parts[1]},
+			})
+			w.WriteHeader(resp.StatusCode)
+			w.Write([]byte(resp.Body))
+			return
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Invalid path for DELETE"))
 		return
 	}
 	id := strings.TrimPrefix(r.URL.Path, "/struktur/")
@@ -328,13 +378,28 @@ func runLambda() {
 func lambdaHandler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	method := req.HTTPMethod
 	path := req.Path
+	npath := normalizePath(path)
 	log.Printf("🪵 Method: %s, Path: %s", method, path)
 
 	switch {
-	case method == "POST" && path == "/submit":
+	case method == "POST" && npath == "/submit":
 		return handler(ctx, req)
-	case method == "GET" && strings.HasPrefix(path, "/struktur/"):
+	case method == "GET" && strings.HasPrefix(npath, "/struktur/"):
 		return getHandler(ctx, req)
+	case method == "DELETE" && strings.HasPrefix(npath, "/struktur/"):
+		parts := strings.Split(strings.TrimPrefix(npath, "/struktur/"), "/")
+		if len(parts) == 2 {
+			req.PathParameters = map[string]string{
+				"personId": parts[0],
+				"nodeId":   parts[1],
+			}
+			return deleteHandler(ctx, req)
+		}
+		return events.APIGatewayProxyResponse{
+			StatusCode: 400,
+			Headers:    corsHeaders(),
+			Body:       "Invalid path for DELETE",
+		}, nil
 	case method == "OPTIONS":
 		return events.APIGatewayProxyResponse{
 			StatusCode: 200,
@@ -350,11 +415,50 @@ func lambdaHandler(ctx context.Context, req events.APIGatewayProxyRequest) (even
 	}
 }
 
+func deleteHandler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	personId := request.PathParameters["personId"]
+	nodeId := request.PathParameters["nodeId"]
+
+	if personId == "" || nodeId == "" {
+		return events.APIGatewayProxyResponse{
+			StatusCode: 400,
+			Headers:    corsHeaders(),
+			Body:       "Missing personId or nodeId",
+		}, nil
+	}
+
+	input := &dynamodb.DeleteItemInput{
+		TableName: aws.String("strukturbild_data"),
+		Key: map[string]types.AttributeValue{
+			"personId": &types.AttributeValueMemberS{Value: personId},
+			"id":       &types.AttributeValueMemberS{Value: nodeId},
+		},
+	}
+
+	_, err := svc.DeleteItem(ctx, input)
+	if err != nil {
+		log.Printf("❌ Failed to delete item: %v", err)
+		return events.APIGatewayProxyResponse{
+			StatusCode: 500,
+			Headers:    corsHeaders(),
+			Body:       "Failed to delete item",
+		}, nil
+	}
+
+	log.Printf("✅ Deleted item with personId: %s, nodeId: %s", personId, nodeId)
+
+	return events.APIGatewayProxyResponse{
+		StatusCode: 200,
+		Headers:    corsHeaders(),
+		Body:       "Item deleted successfully",
+	}, nil
+}
+
 func corsHeaders() map[string]string {
 	return map[string]string{
 		"Access-Control-Allow-Origin":      "*",
-		"Access-Control-Allow-Headers":     "Content-Type",
-		"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
+		"Access-Control-Allow-Headers":     "Content-Type, Authorization, X-Requested-With, X-Amz-Date, X-Api-Key, X-Amz-Security-Token",
+		"Access-Control-Allow-Methods":     "OPTIONS,GET,POST,DELETE",
 		"Access-Control-Allow-Credentials": "true",
 		"Access-Control-Max-Age":           "86400",
 	}
