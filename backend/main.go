@@ -32,6 +32,14 @@ func normalizePath(p string) string {
 
 var svc *dynamodb.Client
 
+// Resolve DynamoDB table from env (fallback to prod default)
+var tableName = func() string {
+	if v := os.Getenv("TABLE_NAME"); v != "" {
+		return v
+	}
+	return "strukturbild_data"
+}()
+
 type Node struct {
 	ID       string `json:"id"`
 	Label    string `json:"label"`
@@ -99,7 +107,7 @@ func getHandler(ctx context.Context, request events.APIGatewayProxyRequest) (eve
 
 	// Scan for all items with personId = id
 	input := &dynamodb.QueryInput{
-		TableName:              aws.String("strukturbild_data"),
+		TableName:              aws.String(tableName),
 		KeyConditionExpression: aws.String("personId = :pid"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
 			":pid": &types.AttributeValueMemberS{Value: id},
@@ -259,7 +267,7 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		}
 
 		input := &dynamodb.PutItemInput{
-			TableName: aws.String("strukturbild_data"),
+			TableName: aws.String(tableName),
 			Item:      av,
 		}
 
@@ -428,7 +436,7 @@ func deleteHandler(ctx context.Context, request events.APIGatewayProxyRequest) (
 	}
 
 	input := &dynamodb.DeleteItemInput{
-		TableName: aws.String("strukturbild_data"),
+		TableName: aws.String(tableName),
 		Key: map[string]types.AttributeValue{
 			"personId": &types.AttributeValueMemberS{Value: personId},
 			"id":       &types.AttributeValueMemberS{Value: nodeId},
@@ -466,6 +474,7 @@ func corsHeaders() map[string]string {
 
 func main() {
 	svc = initializeDynamoDB(context.TODO())
+	log.Printf("✅ Using DynamoDB table: %s", tableName)
 
 	if os.Getenv("LOCAL") == "true" {
 		runHTTPServer()

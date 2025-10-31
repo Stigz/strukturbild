@@ -1,11 +1,17 @@
 # Always run these targets (phony)
 .PHONY: all build zip deploy frontend url test clean stop-local run-local fetch-local-data import import-dir help-import validate validate-dir help-validate validate-verbose help-fix fix-person validate-refs fix-types fix-types-dir
+# --- Environment / Workspaces (dev/prod split) ---
+ENV ?= prod
+BUCKET_DEV  = strukturbild-frontend-dev-a9141bf9
+BUCKET_PROD = strukturbild-frontend-a9141bf9
+
+# Helper to ensure Terraform workspace exists/selected
+TF_SELECT_WORKSPACE = cd terraform && (terraform workspace select $(1) >/dev/null 2>&1 || terraform workspace new $(1))
 # Makefile for deploying Go Lambda with Terraform
 
 LAMBDA_NAME=strukturbild-api
 ZIP_NAME=bootstrap.zip
 GO_BINARY=bootstrap
-BUCKET=strukturbild-frontend-a9141bf9
 API_URL := $(shell cd terraform && terraform output -raw api_url 2>/dev/null || echo http://localhost:3000)
 
 all: build zip deploy frontend
@@ -19,17 +25,36 @@ zip: build
 	cd backend && zip -q $(ZIP_NAME) $(GO_BINARY)
 	mv backend/$(ZIP_NAME) terraform/
 
-deploy: zip
-	@echo "🚀 Deploying via Terraform..."
-	cd terraform && terraform init -upgrade && terraform apply -auto-approve
-	@echo "🌐 Deploying frontend..."
-	$(MAKE) frontend
+deploy: deploy-prod
 
-url:
-	@echo "🌍 Your API endpoint:"
+# --- Dev/Prod aware deploy targets (non-breaking additions) ---
+
+deploy-dev: zip
+	@echo "🚀 Deploying DEV via Terraform..."
+	$(call TF_SELECT_WORKSPACE,dev)
+	cd terraform && TF_VAR_env=dev terraform init -upgrade && TF_VAR_env=dev terraform apply -auto-approve
+	@$(MAKE) frontend-dev
+
+deploy-prod: zip
+	@echo "🚀 Deploying PROD via Terraform..."
+	$(call TF_SELECT_WORKSPACE,prod)
+	cd terraform && TF_VAR_env=prod terraform init -upgrade && TF_VAR_env=prod terraform apply -auto-approve
+	@$(MAKE) frontend-prod
+
+url: url-prod
+
+url-dev:
+	@echo "🌍 Your DEV API endpoint:"
+	$(call TF_SELECT_WORKSPACE,dev)
+	cd terraform && terraform output api_url
+
+url-prod:
+	@echo "🌍 Your PROD API endpoint:"
+	$(call TF_SELECT_WORKSPACE,prod)
 	cd terraform && terraform output api_url
 
 test:
+	$(call TF_SELECT_WORKSPACE,prod)
 	@echo "🔬 Testing POST /submit..."
 	curl -X POST $$(cd terraform && terraform output -raw api_url)/submit \
 		-H "Content-Type: application/json" \
@@ -89,14 +114,31 @@ run-local: stop-local
 fetch-local-data:
 	aws dynamodb scan --table-name strukturbild_data --endpoint-url http://localhost:8000 --output json --no-cli-pager > local-data.json
 
-frontend:
-	@echo "🛠️  Injecting API URL into config.js..."
-	cd frontend && echo "window.STRUKTURBILD_API_URL = '$(API_URL)';" > config.prod.js
-	cp frontend/config.prod.js frontend/config.js
-	@echo "☁️  Syncing static files to S3 (with --delete)..."
-	aws s3 sync frontend/ s3://$(BUCKET) --delete
-	@echo "🧼 Forcing fresh index.html headers so browsers pull latest JS/CSS..."
-	aws s3 cp frontend/index.html s3://$(BUCKET)/index.html \
+frontend: frontend-prod
+
+frontend-dev:
+	@echo "🛠️  Injecting DEV API URL into config.js..."
+	$(call TF_SELECT_WORKSPACE,dev)
+	@API_URL="$$(cd terraform && terraform output -raw api_url)"; \
+	cd frontend && echo "window.STRUKTURBILD_API_URL = '$$API_URL';" > config.dev.js; \
+	cp config.dev.js config.js
+	@echo "☁️  Syncing static files to DEV S3 (with --delete)..."
+	aws s3 sync frontend/ s3://$(BUCKET_DEV) --delete
+	@echo "🧼 Forcing fresh index.html headers (DEV)..."
+	aws s3 cp frontend/index.html s3://$(BUCKET_DEV)/index.html \
+	  --cache-control "no-cache, no-store, must-revalidate" \
+	  --expires 0 --metadata-directive REPLACE
+
+frontend-prod:
+	@echo "🛠️  Injecting PROD API URL into config.js..."
+	$(call TF_SELECT_WORKSPACE,prod)
+	@API_URL="$$(cd terraform && terraform output -raw api_url)"; \
+	cd frontend && echo "window.STRUKTURBILD_API_URL = '$$API_URL';" > config.prod.js; \
+	cp config.prod.js config.js
+	@echo "☁️  Syncing static files to PROD S3 (with --delete)..."
+	aws s3 sync frontend/ s3://$(BUCKET_PROD) --delete
+	@echo "🧼 Forcing fresh index.html headers (PROD)..."
+	aws s3 cp frontend/index.html s3://$(BUCKET_PROD)/index.html \
 	  --cache-control "no-cache, no-store, must-revalidate" \
 	  --expires 0 --metadata-directive REPLACE
 
@@ -244,3 +286,6 @@ fix-types-dir:
 	  $(MAKE) --no-print-directory fix-types FILE=$$f || exit $$?; \
 	done
 	@echo "✅ All JSON files in $(DIR) migrated"
+# --- Convenience aliases for frontend deploy ---
+deploy-frontend-dev: frontend-dev
+deploy-frontend-prod: frontend-prod

@@ -10,7 +10,7 @@ provider "aws" {
 }
 
 resource "aws_iam_role" "lambda_exec_role" {
-  name = "lambda_exec_role_strukturbild"
+  name = "lambda_exec_role_strukturbild${local.name_suffix}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
@@ -33,17 +33,23 @@ resource "aws_iam_role_policy_attachment" "lambda_logs" {
 }
 
 resource "aws_lambda_function" "strukturbild_api" {
-  function_name = "strukturbild-api"
+  function_name = "strukturbild-api${local.name_suffix}"
   role          = aws_iam_role.lambda_exec_role.arn
   handler       = "bootstrap"
   runtime       = "provided.al2023"
   filename      = "bootstrap.zip"  # This should be your Go binary zipped as 'bootstrap'
   source_code_hash = filebase64sha256("bootstrap.zip")
   timeout       = 10
+  environment {
+    variables = {
+      ENV        = local.env
+      TABLE_NAME = local.env == "prod" ? "strukturbild_data" : "strukturbild_data_${local.env}"
+    }
+  }
 }
 
 resource "aws_apigatewayv2_api" "http_api" {
-  name          = "strukturbild-http-api"
+  name          = "strukturbild-http-api${local.name_suffix}"
   protocol_type = "HTTP"
   cors_configuration {
     allow_origins     = ["*"]
@@ -112,12 +118,12 @@ resource "aws_apigatewayv2_route" "delete_route" {
 
 resource "aws_apigatewayv2_stage" "default" {
   api_id      = aws_apigatewayv2_api.http_api.id
-  name        = "$default"
+  name        = local.stage_name
   auto_deploy = true
 }
 
 output "api_url" {
-  value = aws_apigatewayv2_api.http_api.api_endpoint
+  value = aws_apigatewayv2_stage.default.invoke_url
 }
 
 output "http_api_id" {
@@ -125,12 +131,9 @@ output "http_api_id" {
 }
 
 # Static frontend S3 hosting
-resource "random_id" "suffix" {
-  byte_length = 4
-}
 
 resource "aws_s3_bucket" "frontend_bucket" {
-  bucket        = "strukturbild-frontend-${random_id.suffix.hex}"
+  bucket        = local.env == "prod" ? "strukturbild-frontend-a9141bf9" : "strukturbild-frontend-${local.env}-a9141bf9"
   force_destroy = true
 }
 
@@ -186,10 +189,10 @@ resource "aws_s3_object" "frontend_files" {
 }
 
 resource "aws_dynamodb_table" "struktur_data" {
-  name         = "strukturbild_data"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "personId"
-  range_key    = "id"
+  name             = local.env == "prod" ? "strukturbild_data" : "strukturbild_data_${local.env}"
+  billing_mode     = "PAY_PER_REQUEST"
+  hash_key         = "personId"
+  range_key        = "id"
 
   attribute {
     name = "personId"
@@ -207,7 +210,7 @@ resource "aws_dynamodb_table" "struktur_data" {
 }
 
 resource "aws_iam_policy" "dynamodb_access" {
-  name        = "LambdaDynamoDBAccess"
+  name        = "LambdaDynamoDBAccess${local.name_suffix}"
   description = "Allow lambda to put items to DynamoDB"
   policy      = jsonencode({
     Version = "2012-10-17",
@@ -226,7 +229,7 @@ resource "aws_iam_policy" "dynamodb_access" {
 }
 
 resource "aws_iam_policy_attachment" "lambda_dynamodb_attach" {
-  name       = "attach-lambda-dynamodb"
+  name       = "attach-lambda-dynamodb${local.name_suffix}"
   roles      = [aws_iam_role.lambda_exec_role.name]
   policy_arn = aws_iam_policy.dynamodb_access.arn
 }
