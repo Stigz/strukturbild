@@ -9,6 +9,7 @@ import (
 )
 
 func TestHandler(t *testing.T) {
+	setupTestServices()
 	testPayload := Strukturbild{
 		ID:       "test123",
 		PersonID: "testperson",
@@ -36,10 +37,11 @@ func TestHandler(t *testing.T) {
 }
 
 func TestGetHandler(t *testing.T) {
+	setupTestServices()
 	testID := "gettest123"
 	testPayload := Strukturbild{
 		ID:       testID,
-		PersonID: "testperson",
+		PersonID: testID,
 		Nodes: []Node{{
 			ID:       "1",
 			Label:    "Node1",
@@ -73,12 +75,12 @@ func TestGetHandler(t *testing.T) {
 		t.Fatalf("GetHandler failed: %v, response: %+v", err, resp)
 	}
 
-	var returned DBItem
+	var returned Strukturbild
 	if err := json.Unmarshal([]byte(resp.Body), &returned); err != nil {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
 
-	if returned.ID != testID {
+	if returned.PersonID != testID {
 		t.Errorf("Unexpected data: %+v", returned)
 	}
 }

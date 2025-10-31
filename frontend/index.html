@@ -35,6 +35,8 @@
     <button id="saveLayoutBtn">Save Layout</button>
   </div>
 
+  <div id="story-root"></div>
+
   <div id="cy"></div>
 
   <aside id="inspector" class="panel hidden">
@@ -68,7 +70,12 @@
   <script src="https://unpkg.com/cytoscape@3.24.0/dist/cytoscape.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
   <script src="https://unpkg.com/cytoscape-context-menus/cytoscape-context-menus.js"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="config.js"></script>
+  <script type="text/babel" data-type="module" src="story/index.jsx"></script>
   <script src="script.js"></script>
 </body>
 </html>

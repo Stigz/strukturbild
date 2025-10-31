@@ -1,6 +1,11 @@
 const API_BASE_URL = window.STRUKTURBILD_API_URL || "http://localhost:3000";
+const IS_STORY_MODE = window.location.pathname.startsWith("/stories/");
 
 document.addEventListener("DOMContentLoaded", () => {
+  if (IS_STORY_MODE) {
+    document.body.classList.add("story-mode");
+    return;
+  }
   const loadBtn = document.getElementById("loadPersonBtn");
   const createBtn = document.getElementById("createPersonBtn");
   const personInput = document.getElementById("personIdInput");
