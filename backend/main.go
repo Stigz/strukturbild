@@ -18,6 +18,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/google/uuid"
+	storyapi "strukturbild/api"
 )
 
 func normalizePath(p string) string {
@@ -27,10 +28,14 @@ func normalizePath(p string) string {
 	if idx := strings.Index(p, "/submit"); idx >= 0 {
 		return p[idx:]
 	}
+	if idx := strings.Index(p, "/api/"); idx >= 0 {
+		return p[idx:]
+	}
 	return p
 }
 
-var svc *dynamodb.Client
+var svc storyapi.DynamoClient
+var storySvc *storyapi.StoryService
 
 // Resolve DynamoDB table from env (fallback to prod default)
 var tableName = func() string {
@@ -408,6 +413,8 @@ func lambdaHandler(ctx context.Context, req events.APIGatewayProxyRequest) (even
 			Headers:    corsHeaders(),
 			Body:       "Invalid path for DELETE",
 		}, nil
+	case strings.HasPrefix(npath, "/api/"):
+		return handleStoryRoutes(ctx, req, method, npath)
 	case method == "OPTIONS":
 		return events.APIGatewayProxyResponse{
 			StatusCode: 200,
@@ -462,11 +469,43 @@ func deleteHandler(ctx context.Context, request events.APIGatewayProxyRequest) (
 	}, nil
 }
 
+func handleStoryRoutes(ctx context.Context, req events.APIGatewayProxyRequest, method, path string) (events.APIGatewayProxyResponse, error) {
+	if storySvc == nil {
+		return events.APIGatewayProxyResponse{StatusCode: 500, Headers: corsHeaders(), Body: "Story service not initialised"}, nil
+	}
+	trimmed := strings.TrimPrefix(path, "/api/")
+	parts := strings.Split(trimmed, "/")
+	switch {
+	case method == "POST" && trimmed == "stories":
+		return storySvc.HandleCreateStory(ctx, req)
+	case method == "POST" && trimmed == "stories/import":
+		return storySvc.HandleImportStory(ctx, req)
+	case method == "POST" && len(parts) == 4 && parts[0] == "stories" && parts[2] == "paragraphs":
+		storyID := parts[1]
+		req.PathParameters = map[string]string{"storyId": storyID}
+		return storySvc.HandleCreateParagraph(ctx, req)
+	case method == "GET" && len(parts) == 4 && parts[0] == "stories" && parts[2] == "full":
+		storyID := parts[1]
+		req.PathParameters = map[string]string{"storyId": storyID}
+		return storySvc.HandleGetFullStory(ctx, req)
+	case method == "PATCH" && len(parts) == 2 && parts[0] == "paragraphs":
+		paragraphID := parts[1]
+		req.PathParameters = map[string]string{"paragraphId": paragraphID}
+		return storySvc.HandleUpdateParagraph(ctx, req)
+	case method == "POST" && len(parts) == 3 && parts[0] == "paragraphs" && parts[2] == "details":
+		paragraphID := parts[1]
+		req.PathParameters = map[string]string{"paragraphId": paragraphID}
+		return storySvc.HandleCreateDetail(ctx, req)
+	default:
+		return events.APIGatewayProxyResponse{StatusCode: 404, Headers: corsHeaders(), Body: "Not Found"}, nil
+	}
+}
+
 func corsHeaders() map[string]string {
 	return map[string]string{
 		"Access-Control-Allow-Origin":      "*",
 		"Access-Control-Allow-Headers":     "Content-Type, Authorization, X-Requested-With, X-Amz-Date, X-Api-Key, X-Amz-Security-Token",
-		"Access-Control-Allow-Methods":     "OPTIONS,GET,POST,DELETE",
+		"Access-Control-Allow-Methods":     "OPTIONS,GET,POST,DELETE,PATCH",
 		"Access-Control-Allow-Credentials": "true",
 		"Access-Control-Max-Age":           "86400",
 	}
@@ -475,6 +514,7 @@ func corsHeaders() map[string]string {
 func main() {
 	svc = initializeDynamoDB(context.TODO())
 	log.Printf("✅ Using DynamoDB table: %s", tableName)
+	storySvc = storyapi.NewStoryService(svc, tableName, corsHeaders)
 
 	if os.Getenv("LOCAL") == "true" {
 		runHTTPServer()
