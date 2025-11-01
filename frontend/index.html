@@ -5,67 +5,124 @@
   <title>Strukturbild Editor</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://unpkg.com/cytoscape-context-menus/cytoscape-context-menus.css" />
+  <style>
+    :root {
+      --gap: 0;
+      --left-min: 320px;
+      --right-min: 320px;
+      --divider-w: 6px;
+      --left-fr: 1.2;  /* initial left width ratio (persisted to localStorage) */
+      --right-fr: 1;   /* initial right width ratio */
+      --pane-bg: #fff;
+      --border: #e5e5e5;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: #fafafa; }
+
+    /* Split layout */
+    #app.split {
+      position: relative;
+      height: 100vh;
+      display: grid;
+      grid-template-columns: minmax(var(--left-min), 1fr) var(--divider-w) minmax(var(--right-min), 1fr);
+      gap: 0;
+    }
+    /* We will set columns dynamically via JS to reflect saved ratio */
+    .split-left, .split-right {
+      overflow: hidden;
+      background: var(--pane-bg);
+      border: 1px solid var(--border);
+    }
+    .split-left { border-right: none; display: flex; flex-direction: column; }
+    .split-right { border-left: none; padding: 12px 16px; overflow: auto; }
+
+    /* Divider */
+    #divider {
+      cursor: col-resize;
+      background: linear-gradient(90deg, transparent 0, rgba(0,0,0,0.08) 50%, transparent 100%);
+      width: var(--divider-w);
+    }
+    #divider::after {
+      content: "";
+      display: block;
+      width: 2px;
+      height: 100%;
+      margin: 0 auto;
+      background: rgba(0,0,0,0.12);
+    }
+
+    /* Toolbar + Cytoscape */
+    #mini-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-bottom: 1px solid #eee;
+      background: #f7f7f7;
+      flex: 0 0 auto;
+    }
+    #mini-toolbar label { font-size: 12px; color: #444; }
+    #mini-toolbar select, #mini-toolbar button {
+      font-size: 12px;
+      padding: 6px 8px;
+    }
+    #cy { flex: 1 1 auto; height: auto; }
+
+    /* Hide heavy editor chrome we no longer use */
+    #inspector, #status { display: none !important; }
+
+    /* Compact styling for restored editor toolbar row */
+    #mini-toolbar input[type="text"] {
+      font-size: 12px;
+      padding: 6px 8px;
+      width: 160px;
+    }
+    #mini-toolbar .spacer { flex: 1 1 auto; }
+    #mini-toolbar .hidden { display: none !important; }
+
+    /* Responsive fallback to stacked layout on narrow screens */
+    @media (max-width: 900px) {
+      #app.split {
+        grid-template-columns: 1fr;
+        grid-template-rows: 56vh var(--divider-w) 44vh;
+      }
+      #divider { cursor: row-resize; height: var(--divider-w); width: 100%; }
+      #divider::after { width: 100%; height: 2px; }
+      .split-left, .split-right { border: 1px solid var(--border); }
+      .split-left { border-bottom: none; }
+      .split-right { border-top: none; }
+    }
+  </style>
 </head>
 <body>
 
-  <div id="top-bar" class="toolbar">
-    <input type="text" id="personIdInput" placeholder="Person ID">
-    <button id="loadPersonBtn">Load</button>
-    <button id="createPersonBtn">Create New</button>
-    <button id="centerViewBtn">Center View</button>
-    <button id="connectSelectedBtn">Connect Selected</button>
-    <button id="addNodeBtn">Add Node</button>
-    <button id="deleteSelectedBtn">Delete Selected</button>
-    <select id="layoutSelect" title="Layout">
-      <option value="free">Free</option>
-      <option value="cose">COSE</option>
-      <option value="grid">Grid</option>
-      <option value="timeline">Timeline</option>
-    </select>
-    <select id="filterTypeSelect" title="Filter">
-      <option value="all">All types</option>
-      <option value="bedürfnis">bedürfnis</option>
-      <option value="trigger">trigger</option>
-      <option value="schulentwicklungsziel">schulentwicklungsziel</option>
-      <option value="barriere">barriere</option>
-      <option value="promotor">promotor</option>
-      <option value="outcome">outcome</option>
-    </select>
-    <button id="clearExpandBtn" title="Clear expansion">Clear Expand</button>
-    <button id="saveLayoutBtn">Save Layout</button>
-  </div>
+  <div id="app" class="split">
+    <section id="cy-pane" class="split-left">
+      <div id="mini-toolbar" class="toolbar">
+        <input id="personIdInput" type="text" placeholder="Person/Story ID" title="Person/Story ID">
+        <button id="loadBtn" title="Load">Load</button>
+        <button id="createBtn" title="Create New">Create New</button>
 
-  <div id="story-root"></div>
+        <span class="spacer"></span>
 
-  <div id="cy"></div>
-
-  <aside id="inspector" class="panel hidden">
-    <h3>Inspector</h3>
-    <form id="inspectorForm">
-      <div class="row"><label>Selected:</label> <span id="inspectorSelectedType">None</span></div>
-      <div class="row"><label for="fieldLabel">Label</label><input id="fieldLabel" type="text" autocomplete="off"></div>
-      <div class="row"><label for="fieldType">Type</label>
-        <select id="fieldType">
-          <option value="">(none)</option>
-          <option value="bedürfnis">bedürfnis</option>
-          <option value="trigger">trigger</option>
-          <option value="schulentwicklungsziel">schulentwicklungsziel</option>
-          <option value="barriere">barriere</option>
-          <option value="promotor">promotor</option>
-          <option value="outcome">outcome</option>
+        <!-- Keep layoutSelect for script.js compatibility but lock to Grid and hide -->
+        <label for="layoutSelect" title="Layout" class="hidden">Layout:</label>
+        <select id="layoutSelect" title="Layout" class="hidden">
+          <option value="grid" selected>Grid</option>
         </select>
-      </div>
-      <div class="row"><label for="fieldTime">Time</label><input id="fieldTime" type="date"></div>
-      <div class="row"><label for="fieldColor">Color</label><input id="fieldColor" type="text" placeholder="#88ccff or steelblue"></div>
-      <div class="row"><label for="fieldDetail">Detail</label><textarea id="fieldDetail" rows="6" placeholder="Notes / description"></textarea></div>
-      <div class="actions">
-        <button type="button" id="saveInspectorBtn">Save</button>
-        <button type="button" id="cancelInspectorBtn">Cancel</button>
-      </div>
-    </form>
-  </aside>
 
-  <pre id="status"></pre>
+        <button id="centerViewBtn" title="Center View">Center</button>
+        <button id="connectBtn" title="Connect Selected">Connect Selected</button>
+        <button id="addNodeBtn" title="Add Node">Add Node</button>
+        <button id="deleteBtn" title="Delete Selected">Delete Selected</button>
+        <button id="saveLayoutBtn" title="Save Layout">Save</button>
+      </div>
+      <div id="cy"></div>
+    </section>
+    <div id="divider" role="separator" aria-orientation="vertical" aria-label="Resize panels"></div>
+    <section id="story-root" class="split-right"></section>
+  </div>
 
   <script src="https://unpkg.com/cytoscape@3.24.0/dist/cytoscape.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
@@ -77,5 +134,73 @@
   <script src="config.js"></script>
   <script type="text/babel" data-type="module" src="story/index.jsx"></script>
   <script src="script.js"></script>
+  <script>
+    (function splitResize() {
+      var root = document.documentElement;
+      var app = document.getElementById('app');
+      var divider = document.getElementById('divider');
+      if (!app || !divider) return;
+
+      function setColsFromRatio(r) {
+        // r = 0..1 represents left percentage
+        r = Math.max(0.15, Math.min(0.85, r));
+        app.style.gridTemplateColumns = `minmax(var(--left-min), ${r}fr) var(--divider-w) minmax(var(--right-min), ${1 - r}fr)`;
+      }
+
+      // Load saved ratio
+      var saved = localStorage.getItem('split.leftRatio');
+      var ratio = saved ? parseFloat(saved) : 0.55;
+      if (!isNaN(ratio)) setColsFromRatio(ratio);
+
+      var dragging = false;
+      function onMove(e) {
+        if (!dragging) return;
+        var rect = app.getBoundingClientRect();
+        if (window.matchMedia('(max-width: 900px)').matches) {
+          // vertical resize
+          var y = e.touches ? e.touches[0].clientY : e.clientY;
+          var rel = (y - rect.top) / rect.height;
+          rel = Math.max(0.2, Math.min(0.8, rel));
+          app.style.gridTemplateRows = `minmax(40vh, ${rel*100}vh) var(--divider-w) 1fr`;
+        } else {
+          // horizontal resize
+          var x = e.touches ? e.touches[0].clientX : e.clientX;
+          var rel = (x - rect.left) / rect.width;
+          rel = Math.max(0.15, Math.min(0.85, rel));
+          setColsFromRatio(rel);
+          localStorage.setItem('split.leftRatio', String(rel));
+        }
+        e.preventDefault();
+      }
+      function onUp() {
+        dragging = false;
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        document.removeEventListener('touchmove', onMove);
+        document.removeEventListener('touchend', onUp);
+      }
+      function onDown(e) {
+        dragging = true;
+        document.addEventListener('mousemove', onMove, { passive: false });
+        document.addEventListener('mouseup', onUp);
+        document.addEventListener('touchmove', onMove, { passive: false });
+        document.addEventListener('touchend', onUp);
+        e.preventDefault();
+      }
+      divider.addEventListener('mousedown', onDown);
+      divider.addEventListener('touchstart', onDown, { passive: false });
+    })();
+
+    // Ensure Grid layout is selected on load for consistency with previous behavior
+    (function ensureDefaultLayout() {
+      var sel = document.getElementById('layoutSelect');
+      if (sel) {
+        sel.value = 'grid';
+        var ev = document.createEvent('HTMLEvents');
+        ev.initEvent('change', true, false);
+        sel.dispatchEvent(ev);
+      }
+    })();
+  </script>
 </body>
 </html>
