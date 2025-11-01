@@ -6,8 +6,9 @@ document.addEventListener("DOMContentLoaded", () => {
     document.body.classList.add("story-mode");
     return;
   }
-  const loadBtn = document.getElementById("loadPersonBtn");
-  const createBtn = document.getElementById("createPersonBtn");
+  // Support legacy + refreshed toolbar IDs
+  const loadBtn = document.getElementById("loadPersonBtn") || document.getElementById("loadBtn");
+  const createBtn = document.getElementById("createPersonBtn") || document.getElementById("createBtn");
   const personInput = document.getElementById("personIdInput");
 
   // --- Dynamic layout tuning (adds a small slider into the UI) ---
@@ -141,10 +142,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const saveInspectorBtn = document.getElementById("saveInspectorBtn");
   const cancelInspectorBtn = document.getElementById("cancelInspectorBtn");
   const addNodeBtn = document.getElementById("addNodeBtn");
-  const deleteSelectedBtn = document.getElementById("deleteSelectedBtn");
+  const deleteSelectedBtn = document.getElementById("deleteSelectedBtn") || document.getElementById("deleteBtn");
   const layoutSelect = document.getElementById("layoutSelect");
   const saveLayoutBtn = document.getElementById("saveLayoutBtn");
-  const connectSelectedBtn = document.getElementById("connectSelectedBtn");
+  const connectSelectedBtn = document.getElementById("connectSelectedBtn") || document.getElementById("connectBtn");
   let inspectorSelection = null; // cy element currently edited
   const filterTypeSelect = document.getElementById("filterTypeSelect");
   const clearExpandBtn = document.getElementById("clearExpandBtn"); // optional
@@ -921,34 +922,38 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Wire buttons
-  loadBtn.addEventListener("click", async (e) => {
-    e.preventDefault();
-    const personId = personInput.value.trim();
-    if (!personId) { alert("Please provide a Person ID"); return; }
-    await loadPersonData(personId);
-    currentFilter = 'schulentwicklungsziel';
-    expandedNodeId = null;
-    prevFilterBeforeExpand = null;
-    if (filterTypeSelect) filterTypeSelect.value = 'schulentwicklungsziel';
-    needsLayout = true;
-    reRender();
-  });
+  if (loadBtn) {
+    loadBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      const personId = personInput.value.trim();
+      if (!personId) { alert("Please provide a Person ID"); return; }
+      await loadPersonData(personId);
+      currentFilter = 'schulentwicklungsziel';
+      expandedNodeId = null;
+      prevFilterBeforeExpand = null;
+      if (filterTypeSelect) filterTypeSelect.value = 'schulentwicklungsziel';
+      needsLayout = true;
+      reRender();
+    });
+  }
 
-  createBtn.addEventListener("click", (e) => {
-    e.preventDefault();
-    const personId = personInput.value;
-    if (!personId) { alert("Please provide a Person ID first."); return; }
-    if (DEBUG_STATUS) {
-      document.getElementById("status").textContent = `New person '${personId}' created.`;
-    }
-    renderCytoscape([], []);
-    lastNodes = [];
-    lastEdges = [];
-    currentFilter = 'schulentwicklungsziel';
-    expandedNodeId = null;
-    prevFilterBeforeExpand = null;
-    if (filterTypeSelect) filterTypeSelect.value = 'schulentwicklungsziel';
-    needsLayout = true;
-    reRender();
-  });
+  if (createBtn) {
+    createBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      const personId = personInput.value;
+      if (!personId) { alert("Please provide a Person ID first."); return; }
+      if (DEBUG_STATUS) {
+        document.getElementById("status").textContent = `New person '${personId}' created.`;
+      }
+      renderCytoscape([], []);
+      lastNodes = [];
+      lastEdges = [];
+      currentFilter = 'schulentwicklungsziel';
+      expandedNodeId = null;
+      prevFilterBeforeExpand = null;
+      if (filterTypeSelect) filterTypeSelect.value = 'schulentwicklungsziel';
+      needsLayout = true;
+      reRender();
+    });
+  }
 });
