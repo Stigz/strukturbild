@@ -114,14 +114,46 @@ func (m *memoryDynamo) GetItem(ctx context.Context, input *dynamodb.GetItemInput
 	return &dynamodb.GetItemOutput{}, nil
 }
 
+func (m *memoryDynamo) Scan(ctx context.Context, input *dynamodb.ScanInput, optFns ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var items []map[string]types.AttributeValue
+	for _, bucket := range m.items {
+		for _, item := range bucket {
+			if matchesFilter(item, input.FilterExpression, input.ExpressionAttributeValues) {
+				items = append(items, cloneAttrMap(item))
+			}
+		}
+	}
+	sort.Slice(items, func(i, j int) bool {
+		return getStringAttr(items[i]["id"]) < getStringAttr(items[j]["id"])
+	})
+	return &dynamodb.ScanOutput{Items: items}, nil
+}
+
 func matchesFilter(item map[string]types.AttributeValue, filter *string, expr map[string]types.AttributeValue) bool {
 	if filter == nil || *filter == "" {
 		return true
 	}
-	switch strings.TrimSpace(*filter) {
-	case "paragraphId = :paragraphId":
+	trimmed := strings.TrimSpace(*filter)
+	switch {
+	case trimmed == "paragraphId = :paragraphId":
 		want := getStringAttr(expr[":paragraphId"])
 		return getStringAttr(item["paragraphId"]) == want
+	case strings.HasPrefix(trimmed, "begins_with(") && strings.HasSuffix(trimmed, ")"):
+		inner := strings.TrimSuffix(strings.TrimPrefix(trimmed, "begins_with("), ")")
+		parts := strings.Split(inner, ",")
+		if len(parts) != 2 {
+			return true
+		}
+		field := strings.TrimSpace(parts[0])
+		token := strings.TrimSpace(parts[1])
+		attr := item[field]
+		prefix := getStringAttr(expr[token])
+		if v, ok := attr.(*types.AttributeValueMemberS); ok {
+			return strings.HasPrefix(v.Value, prefix)
+		}
+		return false
 	default:
 		return true
 	}

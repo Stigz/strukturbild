@@ -181,3 +181,53 @@ func TestImportStory(t *testing.T) {
 		t.Fatalf("detail mapping incorrect: %+v", full.DetailsByParagraph)
 	}
 }
+
+func TestListStories(t *testing.T) {
+	setupTestServices()
+	ctx := context.Background()
+
+	stories := []struct {
+		id    string
+		title string
+	}{
+		{"story-rychenberg", "Rychenberg"},
+		{"story-sonnhalde", "Sonnhalde"},
+	}
+
+	for _, s := range stories {
+		body := map[string]string{
+			"storyId":  s.id,
+			"schoolId": "school-" + s.id,
+			"title":    s.title,
+		}
+		payload, _ := json.Marshal(body)
+		resp, err := storySvc.HandleCreateStory(ctx, events.APIGatewayProxyRequest{Body: string(payload)})
+		if err != nil || resp.StatusCode != 200 {
+			t.Fatalf("create story failed for %s: %v status=%d", s.id, err, resp.StatusCode)
+		}
+	}
+
+	resp, err := storySvc.HandleListStories(ctx, events.APIGatewayProxyRequest{})
+	if err != nil || resp.StatusCode != 200 {
+		t.Fatalf("list stories failed: %v status=%d", err, resp.StatusCode)
+	}
+
+	var payload struct {
+		Stories []storyapi.Story `json:"stories"`
+	}
+	if err := json.Unmarshal([]byte(resp.Body), &payload); err != nil {
+		t.Fatalf("unmarshal list response: %v", err)
+	}
+	if len(payload.Stories) != len(stories) {
+		t.Fatalf("expected %d stories, got %d", len(stories), len(payload.Stories))
+	}
+	ids := make(map[string]bool)
+	for _, s := range payload.Stories {
+		ids[s.StoryID] = true
+	}
+	for _, expected := range stories {
+		if !ids[expected.id] {
+			t.Fatalf("missing story %s in response", expected.id)
+		}
+	}
+}

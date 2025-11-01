@@ -480,6 +480,8 @@ func handleStoryRoutes(ctx context.Context, req events.APIGatewayProxyRequest, m
 		return storySvc.HandleCreateStory(ctx, req)
 	case method == "POST" && trimmed == "stories/import":
 		return storySvc.HandleImportStory(ctx, req)
+	case method == "GET" && trimmed == "stories":
+		return storySvc.HandleListStories(ctx, req)
 	case method == "POST" && len(parts) == 4 && parts[0] == "stories" && parts[2] == "paragraphs":
 		storyID := parts[1]
 		req.PathParameters = map[string]string{"storyId": storyID}

@@ -100,8 +100,10 @@
   <div id="app" class="split">
     <section id="cy-pane" class="split-left">
       <div id="mini-toolbar" class="toolbar">
-        <input id="personIdInput" type="text" placeholder="Person/Story ID" title="Person/Story ID">
-        <button id="loadBtn" title="Load">Load</button>
+        <select id="storySelect" title="Select a story">
+          <option value="">Loading stories…</option>
+        </select>
+        <input id="personIdInput" type="hidden" placeholder="Person/Story ID" title="Person/Story ID">
         <button id="createBtn" title="Create New">Create New</button>
 
         <span class="spacer"></span>
