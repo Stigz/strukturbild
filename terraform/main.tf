@@ -244,3 +244,10 @@ resource "aws_apigatewayv2_route" "get_route" {
   target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
   authorization_type = "NONE"
 }
+
+resource "aws_apigatewayv2_route" "api_proxy" {
+  api_id             = aws_apigatewayv2_api.http_api.id
+  route_key          = "ANY /api/{proxy+}"
+  authorization_type = "NONE"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+}
