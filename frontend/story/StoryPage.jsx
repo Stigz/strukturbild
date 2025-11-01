@@ -1,5 +1,4 @@
 import ParagraphList from "./ParagraphList.jsx";
-import DetailsRail from "./DetailsRail.jsx";
 import ImportButton from "./ImportButton.jsx";
 
 const React = window.React;
@@ -216,13 +215,6 @@ export default function StoryPage({ storyId, apiBaseUrl }) {
     setRefreshToken((token) => token + 1);
   }, [fetchStory]);
 
-  const paragraphDetails = React.useMemo(() => {
-    if (!data || !data.detailsByParagraph || !activeParagraphId) {
-      return [];
-    }
-    return data.detailsByParagraph[activeParagraphId] || [];
-  }, [data, activeParagraphId]);
-
   const storyTitle = data?.story?.title || "Story";
   const storySchool = data?.story?.schoolId ? `Schule: ${data.story.schoolId}` : "";
 
@@ -240,10 +232,10 @@ export default function StoryPage({ storyId, apiBaseUrl }) {
         </div>
       </header>
       <div className="story-body">
-        <div className="story-graph-column">
+        <section className="story-graph-column" aria-label="Strukturbild">
           <GraphPane storyId={storyId} apiBaseUrl={apiBaseUrl} refreshToken={refreshToken} />
-        </div>
-        <div className="story-paragraphs-column">
+        </section>
+        <section className="story-paragraphs-column" aria-label="Story"> 
           {loading ? (
             <div>Lade Story…</div>
           ) : (
@@ -256,9 +248,8 @@ export default function StoryPage({ storyId, apiBaseUrl }) {
               savingParagraphId={savingId}
             />
           )}
-        </div>
+        </section>
       </div>
-      <DetailsRail details={paragraphDetails} />
     </div>
   );
 }
