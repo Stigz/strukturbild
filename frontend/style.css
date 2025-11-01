@@ -53,6 +53,12 @@ html, body {
   border-radius: 6px;
   cursor: pointer;
 }
+.toolbar select:disabled {
+  color: #777;
+}
+#storySelect {
+  min-width: 220px;
+}
 .toolbar button:hover { background: #f3f3f3; }
 .toolbar button:active { transform: translateY(1px); }
 .toolbar button[data-active="true"] {

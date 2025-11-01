@@ -1,15 +1,74 @@
 const API_BASE_URL = window.STRUKTURBILD_API_URL || "http://localhost:3000";
 const IS_STORY_MODE = window.location.pathname.startsWith("/stories/");
+const STORY_ID = (window.location.pathname.match(/\/stories\/([^/]+)/) || [])[1] || "";
+
+async function fetchAndRenderStory(storyId) {
+  const root = document.getElementById('story-root');
+  if (!root || !storyId) return;
+  const base = (API_BASE_URL || '').replace(/\/+$/, '');
+  try {
+    const res = await fetch(`${base}/api/stories/${encodeURIComponent(storyId)}/full`);
+    if (!res.ok) {
+      root.innerHTML = `<p style="color:#b00">Story load failed (HTTP ${res.status}).</p>`;
+      return;
+    }
+    const data = await res.json();
+    const title = (data.story && data.story.title) || storyId;
+    const paras = Array.isArray(data.paragraphs)
+      ? data.paragraphs.slice().sort((a, b) => (a.index || 0) - (b.index || 0))
+      : [];
+    let html = `<h2>${title}</h2>`;
+    if (!paras.length) html += '<p style="color:#555">No paragraphs yet.</p>';
+    else {
+      html += paras.map(p => {
+        const body = (p.bodyMd || '').replace(/\n/g, '<br>');
+        const t = (p.index != null ? `§${p.index}` : '');
+        const heading = p.title ? `: ${p.title}` : '';
+        return `<div class="para"><div class="para-index">${t}${heading}</div><div class="para-body">${body}</div></div>`;
+      }).join('');
+    }
+    root.innerHTML = html;
+  } catch (e) {
+    console.error('Story fetch error', e);
+    root.innerHTML = `<p style="color:#b00">Story load error: ${String(e)}</p>`;
+  }
+}
+
+async function fetchStoryList() {
+  const base = (API_BASE_URL || '').replace(/\/+$/, '');
+  const res = await fetch(`${base}/api/stories`);
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  const storiesArray = data && Array.isArray(data.stories) ? data.stories : null;
+  const collection = storiesArray || (Array.isArray(data) ? data : []);
+  return collection
+    .filter(item => item && (item.storyId || item.storyID))
+    .map(item => ({
+      storyId: item.storyId || item.storyID,
+      title: item.title || (item.Story && item.Story.title) || item.storyId || item.storyID,
+      schoolId: item.schoolId || item.SchoolID || '',
+    }));
+}
 
 document.addEventListener("DOMContentLoaded", () => {
   if (IS_STORY_MODE) {
     document.body.classList.add("story-mode");
-    return;
+    const personInputEarly = document.getElementById("personIdInput");
+    if (personInputEarly && STORY_ID) personInputEarly.value = STORY_ID;
+    if (STORY_ID) fetchAndRenderStory(STORY_ID);
+  } else {
+    const storyRoot = document.getElementById('story-root');
+    if (storyRoot && !storyRoot.innerHTML) {
+      storyRoot.innerHTML = '<p style="color:#444">Wähle eine Story in der Liste, um sie zu öffnen.</p>';
+    }
   }
   // Support legacy + refreshed toolbar IDs
   const loadBtn = document.getElementById("loadPersonBtn") || document.getElementById("loadBtn");
   const createBtn = document.getElementById("createPersonBtn") || document.getElementById("createBtn");
   const personInput = document.getElementById("personIdInput");
+  const storySelect = document.getElementById("storySelect");
 
   // --- Dynamic layout tuning (adds a small slider into the UI) ---
   // Single "Spacing" slider controls COSE-like spacing when used, and spacing inside deterministic layouts.
@@ -106,7 +165,13 @@ document.addEventListener("DOMContentLoaded", () => {
     'schulentwicklungsziel': '#111827',
     'barriere': '#ef4444',
     'promotor': '#22c55e',
-    'outcome': '#3b82f6'
+    'outcome': '#3b82f6',
+    // MVP taxonomy types
+    'prozess': '#2563eb',
+    'praxis': '#7c3aed',
+    'ergebnis': '#16a34a',
+    'schwierigkeit': '#dc2626',
+    'beschäftigung': '#f59e0b'
   };
   function stripDiacritics(s){
     try { return s.normalize('NFD').replace(/\p{Diacritic}/gu, ''); } catch { return s || ''; }
@@ -123,6 +188,14 @@ document.addEventListener("DOMContentLoaded", () => {
       // taxonomy rename + plural
       'entwicklungsinhalt': 'schulentwicklungsziel',
       'schulentwicklungsziele': 'schulentwicklungsziel',
+      // MVP taxonomy aliases
+      'prozess': 'prozess',
+      'praxis': 'praxis',
+      'ergebnis': 'ergebnis',
+      'schwierigkeit': 'schwierigkeit',
+      'beschaeftigung': 'beschäftigung',
+      'beschaftigung': 'beschäftigung',
+      'beschäftigung': 'beschäftigung',
       // diacritic/typing variants
       'bedurfnis': 'bedürfnis',
       'beduerfnis': 'bedürfnis'
@@ -422,20 +495,26 @@ document.addEventListener("DOMContentLoaded", () => {
     inspectorSelection = el;
     if (!el) { closeInspector(); return; }
     const isNode = el.isNode();
-    selTypeSpan.textContent = isNode ? `Node ${el.id()}` : `Edge ${el.id()}`;
+    if (selTypeSpan) selTypeSpan.textContent = isNode ? `Node ${el.id()}` : `Edge ${el.id()}`;
     const d = el.data();
-    fieldLabel.value = d.label || '';
-    fieldType.value = d.type || '';
-    fieldTime.value = (d.time && /^\d{4}-\d{2}-\d{2}$/.test(d.time)) ? d.time : '';
-    fieldColor.value = d.color || '';
-    fieldDetail.value = d.detail || '';
-    inspector.classList.remove('hidden');
-    document.getElementById('cy')?.classList.add('has-panel');
+    if (fieldLabel) fieldLabel.value = d.label || '';
+    if (fieldType) fieldType.value = d.type || '';
+    if (fieldTime) fieldTime.value = (d.time && /^\d{4}-\d{2}-\d{2}$/.test(d.time)) ? d.time : '';
+    if (fieldColor) fieldColor.value = d.color || '';
+    if (fieldDetail) fieldDetail.value = d.detail || '';
+    if (inspector) {
+      inspector.classList.remove('hidden');
+      const cyEl = document.getElementById('cy');
+      if (cyEl && cyEl.classList) cyEl.classList.add('has-panel');
+    }
   }
   function closeInspector() {
     inspectorSelection = null;
-    inspector.classList.add('hidden');
-    document.getElementById('cy')?.classList.remove('has-panel');
+    if (inspector) {
+      inspector.classList.add('hidden');
+    }
+    const cyEl = document.getElementById('cy');
+    if (cyEl && cyEl.classList) cyEl.classList.remove('has-panel');
   }
   async function saveInspector() {
     if (!inspectorSelection) return;
@@ -937,6 +1016,48 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  if (storySelect) {
+    (async () => {
+      storySelect.disabled = true;
+      try {
+        const stories = await fetchStoryList();
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = stories.length ? 'Select a story…' : 'No stories available';
+        placeholder.disabled = stories.length > 0;
+        storySelect.innerHTML = '';
+        storySelect.appendChild(placeholder);
+        stories.forEach(story => {
+          const option = document.createElement('option');
+          option.value = story.storyId;
+          const school = story.schoolId ? ` (${story.schoolId})` : '';
+          option.textContent = `${story.title || story.storyId}${school}`;
+          storySelect.appendChild(option);
+        });
+        if (IS_STORY_MODE && STORY_ID) {
+          storySelect.value = STORY_ID;
+        } else {
+          placeholder.selected = true;
+        }
+        storySelect.disabled = stories.length === 0;
+      } catch (err) {
+        console.error('Story list fetch failed', err);
+        storySelect.innerHTML = '';
+        const errorOption = document.createElement('option');
+        errorOption.value = '';
+        errorOption.textContent = 'Failed to load stories';
+        storySelect.appendChild(errorOption);
+        storySelect.disabled = true;
+      }
+    })();
+
+    storySelect.addEventListener('change', (event) => {
+      const selected = event.target.value;
+      if (!selected) return;
+      window.location.href = `/stories/${encodeURIComponent(selected)}`;
+    });
+  }
+
   if (createBtn) {
     createBtn.addEventListener("click", (e) => {
       e.preventDefault();
@@ -955,5 +1076,21 @@ document.addEventListener("DOMContentLoaded", () => {
       needsLayout = true;
       reRender();
     });
+  }
+
+  if (IS_STORY_MODE && STORY_ID) {
+    if (personInput && (!personInput.value || personInput.value !== STORY_ID)) {
+      personInput.value = STORY_ID;
+    }
+    loadPersonData(STORY_ID)
+      .then(() => {
+        currentFilter = 'schulentwicklungsziel';
+        expandedNodeId = null;
+        prevFilterBeforeExpand = null;
+        if (filterTypeSelect) filterTypeSelect.value = 'schulentwicklungsziel';
+        needsLayout = true;
+        reRender();
+      })
+      .catch(err => console.error('Auto story load failed', err));
   }
 });

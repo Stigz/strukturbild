@@ -22,6 +22,7 @@ type DynamoClient interface {
 	Query(context.Context, *dynamodb.QueryInput, ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error)
 	DeleteItem(context.Context, *dynamodb.DeleteItemInput, ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error)
 	GetItem(context.Context, *dynamodb.GetItemInput, ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error)
+	Scan(context.Context, *dynamodb.ScanInput, ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error)
 }
 
 // StoryService bundles the handlers for the Story API.
@@ -356,6 +357,38 @@ func (s *StoryService) HandleGetFullStory(ctx context.Context, req events.APIGat
 		Paragraphs:         paragraphs,
 		DetailsByParagraph: detailsByParagraph,
 	}
+	return s.jsonResponse(200, payload)
+}
+
+func (s *StoryService) HandleListStories(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	scanInput := &dynamodb.ScanInput{
+		TableName:        &s.tableName,
+		FilterExpression: awsString("begins_with(id, :storyPrefix)"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":storyPrefix": &types.AttributeValueMemberS{Value: "STORY#"},
+		},
+	}
+	result, err := s.dynamo.Scan(ctx, scanInput)
+	if err != nil {
+		return s.errorResponse(500, fmt.Sprintf("Failed to list stories: %v", err))
+	}
+	stories := make([]Story, 0, len(result.Items))
+	for _, item := range result.Items {
+		var rec storyRecord
+		if err := attributevalue.UnmarshalMap(item, &rec); err != nil {
+			continue
+		}
+		stories = append(stories, rec.Story)
+	}
+	sort.Slice(stories, func(i, j int) bool {
+		titleI := strings.TrimSpace(strings.ToLower(stories[i].Title))
+		titleJ := strings.TrimSpace(strings.ToLower(stories[j].Title))
+		if titleI == titleJ {
+			return stories[i].StoryID < stories[j].StoryID
+		}
+		return titleI < titleJ
+	})
+	payload := map[string][]Story{"stories": stories}
 	return s.jsonResponse(200, payload)
 }
 
