@@ -28,16 +28,26 @@ function GraphPane({ storyId, apiBaseUrl, refreshToken }) {
           cyRef.current = null;
         }
         const elements = [];
+        let nodesWithPositions = 0;
+        const totalNodes = Array.isArray(data.nodes) ? data.nodes.length : 0;
         (data.nodes || []).forEach((node) => {
-          elements.push({
+          const nodeElement = {
             data: {
               id: node.id,
               label: node.label,
               detail: node.detail,
               type: node.type,
             },
-            position: { x: node.x || 0, y: node.y || 0 },
-          });
+          };
+          const parsedX =
+            typeof node.x === "number" ? node.x : Number.parseFloat(node.x);
+          const parsedY =
+            typeof node.y === "number" ? node.y : Number.parseFloat(node.y);
+          if (Number.isFinite(parsedX) && Number.isFinite(parsedY)) {
+            nodeElement.position = { x: parsedX, y: parsedY };
+            nodesWithPositions += 1;
+          }
+          elements.push(nodeElement);
         });
         (data.edges || []).forEach((edge, idx) => {
           elements.push({
@@ -49,6 +59,9 @@ function GraphPane({ storyId, apiBaseUrl, refreshToken }) {
             },
           });
         });
+        const hasPresetPositions =
+          totalNodes > 0 && nodesWithPositions === totalNodes;
+
         cyRef.current = window.cytoscape({
           container: containerRef.current,
           elements,
@@ -81,12 +94,20 @@ function GraphPane({ storyId, apiBaseUrl, refreshToken }) {
               },
             },
           ],
-          layout: { name: "preset" },
+          layout: hasPresetPositions
+            ? { name: "preset" }
+            : { name: "cose", animate: false, fit: true },
         });
         if (cyRef.current) {
           cyRef.current.boxSelectionEnabled(false);
           cyRef.current.autoungrabify(true);
           cyRef.current.userZoomingEnabled(true);
+          cyRef.current.resize();
+          try {
+            cyRef.current.fit(undefined, 32);
+          } catch (err) {
+            // ignore fit issues on initial render
+          }
         }
         setStatus({ loading: false, error: null });
       } catch (err) {
