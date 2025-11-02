@@ -42,8 +42,9 @@ resource "aws_lambda_function" "strukturbild_api" {
   timeout       = 10
   environment {
     variables = {
-      ENV        = local.env
-      TABLE_NAME = local.env == "prod" ? "strukturbild_data" : "strukturbild_data_${local.env}"
+      ENV               = local.env
+      DDB_STORIES_TABLE = local.env == "prod" ? "strukturbild_stories" : "strukturbild_stories_${local.env}"
+      DDB_GRAPHS_TABLE  = local.env == "prod" ? "strukturbild_graphs" : "strukturbild_graphs_${local.env}"
     }
   }
 }
@@ -111,7 +112,7 @@ resource "aws_apigatewayv2_deployment" "deployment" {
 }
 resource "aws_apigatewayv2_route" "delete_route" {
   api_id             = aws_apigatewayv2_api.http_api.id
-  route_key          = "DELETE /struktur/{personId}/{nodeId}"
+  route_key          = "DELETE /struktur/{storyId}/{nodeId}"
   target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
   authorization_type = "NONE"
 }
@@ -188,19 +189,28 @@ resource "aws_s3_object" "frontend_files" {
   )
 }
 
-resource "aws_dynamodb_table" "struktur_data" {
-  name             = local.env == "prod" ? "strukturbild_data" : "strukturbild_data_${local.env}"
-  billing_mode     = "PAY_PER_REQUEST"
-  hash_key         = "personId"
-  range_key        = "id"
+resource "aws_dynamodb_table" "stories" {
+  name         = local.env == "prod" ? "strukturbild_stories" : "strukturbild_stories_${local.env}"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "storyId"
 
   attribute {
-    name = "personId"
+    name = "storyId"
     type = "S"
   }
 
+  tags = {
+    Project = "strukturbild"
+  }
+}
+
+resource "aws_dynamodb_table" "graphs" {
+  name         = local.env == "prod" ? "strukturbild_graphs" : "strukturbild_graphs_${local.env}"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "storyId"
+
   attribute {
-    name = "id"
+    name = "storyId"
     type = "S"
   }
 
@@ -223,8 +233,11 @@ resource "aws_iam_policy" "dynamodb_access" {
         "dynamodb:DeleteItem",
         "dynamodb:Scan"
       ],
-      Effect   = "Allow",
-      Resource = aws_dynamodb_table.struktur_data.arn
+      Effect = "Allow",
+      Resource = [
+        aws_dynamodb_table.stories.arn,
+        aws_dynamodb_table.graphs.arn,
+      ]
     }]
   })
 }
@@ -241,7 +254,7 @@ output "frontend_url" {
 
 resource "aws_apigatewayv2_route" "get_route" {
   api_id             = aws_apigatewayv2_api.http_api.id
-  route_key          = "GET /struktur/{id}"
+  route_key          = "GET /struktur/{storyId}"
   target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
   authorization_type = "NONE"
 }

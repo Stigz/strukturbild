@@ -113,7 +113,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const loadBtn = document.getElementById("loadPersonBtn") || document.getElementById("loadBtn");
   const createBtn = document.getElementById("createPersonBtn") || document.getElementById("createBtn");
-  const personInput = document.getElementById("personIdInput");
+  const storyInput = document.getElementById("storyIdInput");
   const storySelect = document.getElementById("storySelect");
   const filterTypeSelect = document.getElementById("filterTypeSelect");
 
@@ -128,7 +128,7 @@ document.addEventListener("DOMContentLoaded", () => {
       STORY_ID = "";
       IS_STORY_MODE = false;
       document.body.classList.remove("story-mode");
-      if (personInput) personInput.value = "";
+      if (storyInput) storyInput.value = "";
       if (storySelect) {
         storySelect.value = "";
       }
@@ -172,7 +172,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     document.body.classList.add("story-mode");
-    if (personInput) personInput.value = storyId;
+    if (storyInput) storyInput.value = storyId;
     if (storySelect) {
       storySelect.value = storyId;
     }
@@ -188,7 +188,7 @@ document.addEventListener("DOMContentLoaded", () => {
     expandedNodeId = null;
     prevFilterBeforeExpand = null;
 
-    loadPersonData(storyId)
+    loadStoryData(storyId)
       .then(() => {
         needsLayout = true;
         reRender();
@@ -522,12 +522,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   deleteSelectedBtn?.addEventListener('click', async () => {
     if (!cy) return;
-    const personId = personInput.value.trim();
+    const storyId = storyInput.value.trim();
     const nodes = cy.$('node:selected');
     for (let i = 0; i < nodes.length; i++) {
       const n = nodes[i];
       try {
-        const res = await fetch(`${API_BASE_URL}/struktur/${personId}/${n.id()}`, { method: 'DELETE' });
+        const res = await fetch(`${API_BASE_URL}/struktur/${storyId}/${n.id()}`, { method: 'DELETE' });
         if (!res.ok) throw new Error(await res.text());
         n.remove();
         // Sync in-memory dataset
@@ -607,13 +607,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const sel = cy.$('node:selected');
     if (sel.length !== 2) { alert('Select exactly two nodes'); return; }
     const a = sel[0].id(); const b = sel[1].id();
-    const personId = personInput.value.trim();
+    const storyId = storyInput.value.trim();
     const newEdge = { from: a, to: b, label: '' };
 
     // Persist
     fetch(`${API_BASE_URL}/submit`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ personId, nodes: [], edges: [newEdge] })
+      body: JSON.stringify({ storyId, nodes: [], edges: [newEdge] })
     }).catch(err => console.error('Persist edge failed', err));
 
     // Update in-memory + re-render
@@ -650,11 +650,11 @@ document.addEventListener("DOMContentLoaded", () => {
   async function saveInspector() {
     if (!inspectorSelection) return;
     const isNode = inspectorSelection.isNode();
-    const personId = personInput.value.trim();
-    if (!personId) { alert('Set Person ID first'); return; }
+    const storyId = storyInput.value.trim();
+    if (!storyId) { alert('Set Story ID first'); return; }
     const pos = isNode ? inspectorSelection.position() : null;
     const payload = {
-      personId,
+      storyId,
       nodes: isNode ? [{
         id: inspectorSelection.id(),
         label: fieldLabel.value.trim(),
@@ -663,7 +663,7 @@ document.addEventListener("DOMContentLoaded", () => {
         color: fieldColor.value.trim(),
         detail: fieldDetail.value.trim(),
         x: Math.round(pos.x), y: Math.round(pos.y),
-        personId, isNode: true
+        storyId, isNode: true
       }] : [],
       edges: (!isNode) ? [{
         from: inspectorSelection.data('source'),
@@ -684,7 +684,7 @@ document.addEventListener("DOMContentLoaded", () => {
         time: fieldTime.value || '',
         color: fieldColor.value.trim(),
         detail: fieldDetail.value.trim(),
-        personId,
+        storyId,
         ...posxy
       };
       if (idx >= 0) { lastNodes[idx] = { ...lastNodes[idx], ...updated }; }
@@ -717,7 +717,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   function persistPositions() {
     if (!cy) return;
-    const personId = personInput.value.trim();
+    const storyId = storyInput.value.trim();
     const nodes = cy.nodes().map(n => {
       const p = n.position();
       return {
@@ -728,7 +728,7 @@ document.addEventListener("DOMContentLoaded", () => {
         color: n.data('color')||'',
         detail: n.data('detail')||'',
         x: Math.round(p.x), y: Math.round(p.y),
-        personId, isNode: true
+        storyId, isNode: true
       };
     });
     // Keep in-memory positions in sync
@@ -738,7 +738,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     fetch(`${API_BASE_URL}/submit`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ personId, nodes, edges: [] })
+      body: JSON.stringify({ storyId, nodes, edges: [] })
     });
   }
   function applyLayout(kind) {
@@ -787,9 +787,9 @@ document.addEventListener("DOMContentLoaded", () => {
   saveInspectorBtn?.addEventListener('click', saveInspector);
   cancelInspectorBtn?.addEventListener('click', closeInspector);
 
-  async function loadPersonData(personId) {
+  async function loadStoryData(storyId) {
     try {
-      const response = await fetch(`${API_BASE_URL}/struktur/${personId}`);
+      const response = await fetch(`${API_BASE_URL}/struktur/${storyId}`);
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Server error ${response.status}: ${errorText}`);
@@ -1099,8 +1099,8 @@ document.addEventListener("DOMContentLoaded", () => {
             selector: 'node',
             onClickFunction: (event) => {
               const node = event.target;
-              const personId = document.getElementById("personIdInput").value;
-              fetch(`${API_BASE_URL}/struktur/${personId}/${node.id()}`, { method: 'DELETE' })
+              const storyId = document.getElementById("storyIdInput").value;
+              fetch(`${API_BASE_URL}/struktur/${storyId}/${node.id()}`, { method: 'DELETE' })
                 .then(res => {
                   if (!res.ok) return res.text().then(t => { throw new Error(`Delete failed ${res.status}: ${t}`); });
                   node.remove();
@@ -1180,15 +1180,15 @@ document.addEventListener("DOMContentLoaded", () => {
           if (addNodeMode) {
             const p = evt.position;
             const id = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : (Math.random()*1e17).toString(36);
-            const personId = personInput.value.trim();
+            const storyId = storyInput.value.trim();
             cy.add({ group:'nodes', data:{ id, label:'', type:'', time:'', color:'', detail:'' }, position:{ x:p.x, y:p.y } });
             // Update in-memory dataset
-            const nodeObj = { id, label:'', type:'', time:'', color:'', detail:'', x:Math.round(p.x), y:Math.round(p.y), personId, isNode:true };
+            const nodeObj = { id, label:'', type:'', time:'', color:'', detail:'', x:Math.round(p.x), y:Math.round(p.y), storyId, isNode:true };
             lastNodes.push(nodeObj);
             // Persist basic node immediately
             fetch(`${API_BASE_URL}/submit`, {
               method:'POST', headers:{'Content-Type':'application/json'},
-              body: JSON.stringify({ personId, nodes:[nodeObj], edges:[] })
+              body: JSON.stringify({ storyId, nodes:[nodeObj], edges:[] })
             });
             const newNode = cy.$id(id);
             newNode.select();
@@ -1255,9 +1255,9 @@ document.addEventListener("DOMContentLoaded", () => {
   if (loadBtn) {
     loadBtn.addEventListener("click", async (e) => {
       e.preventDefault();
-      const personId = personInput.value.trim();
-      if (!personId) { alert("Please provide a Person ID"); return; }
-      await loadPersonData(personId);
+      const storyId = storyInput.value.trim();
+      if (!storyId) { alert("Please provide a Story ID"); return; }
+      await loadStoryData(storyId);
       currentFilter = 'schulentwicklungsziel';
       expandedNodeId = null;
       prevFilterBeforeExpand = null;
@@ -1315,10 +1315,10 @@ document.addEventListener("DOMContentLoaded", () => {
   if (createBtn) {
     createBtn.addEventListener("click", (e) => {
       e.preventDefault();
-      const personId = personInput.value;
-      if (!personId) { alert("Please provide a Person ID first."); return; }
+      const storyId = storyInput.value;
+      if (!storyId) { alert("Please provide a Story ID first."); return; }
       if (DEBUG_STATUS) {
-        document.getElementById("status").textContent = `New person '${personId}' created.`;
+        document.getElementById("status").textContent = `New story '${storyId}' created.`;
       }
       renderCytoscape([], []);
       lastNodes = [];
@@ -1332,8 +1332,8 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  if (STORY_ID && personInput && (!personInput.value || personInput.value !== STORY_ID)) {
-    personInput.value = STORY_ID;
+  if (STORY_ID && storyInput && (!storyInput.value || storyInput.value !== STORY_ID)) {
+    storyInput.value = STORY_ID;
   }
 
   window.addEventListener('popstate', () => {

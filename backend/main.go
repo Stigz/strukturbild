@@ -28,9 +28,9 @@ func newRouter() *mux.Router {
 	router.HandleFunc("/api/stories", ListStories).Methods(http.MethodGet)
 	router.HandleFunc("/api/stories/{id}/full", GetStoryFull).Methods(http.MethodGet)
 	router.HandleFunc("/api/stories/import", ImportStory).Methods(http.MethodPost)
-	router.HandleFunc("/struktur/{personId}", GetStrukturByPerson).Methods(http.MethodGet)
+	router.HandleFunc("/struktur/{storyId}", GetStrukturByStory).Methods(http.MethodGet)
 	router.HandleFunc("/submit", SubmitHandler).Methods(http.MethodPost)
-	router.HandleFunc("/struktur/{personId}/{nodeId}", DeleteNode).Methods(http.MethodDelete)
+	router.HandleFunc("/struktur/{storyId}/{nodeId}", DeleteNode).Methods(http.MethodDelete)
 
 	router.Methods(http.MethodOptions).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
