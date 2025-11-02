@@ -225,7 +225,7 @@ func TestSubmitUpsertsNodePositions(t *testing.T) {
 	router := newRouter()
 
 	submitPayload := submitPayload{
-		PersonID: "story-rychenberg",
+		StoryID: "story-rychenberg",
 		Nodes: []Node{
 			{ID: "n2", Label: "Soziokratie", X: 900, Y: 901},
 			{ID: "n8", Label: "Neuer Knoten", X: 400, Y: 401},
@@ -269,8 +269,8 @@ func TestSubmitUpsertsNodePositions(t *testing.T) {
 			foundUpdated = true
 		case "n8":
 			foundNew = true
-			if node.PersonID != "story-rychenberg" {
-				t.Fatalf("expected personId on new node, got %s", node.PersonID)
+			if node.StoryID != "story-rychenberg" {
+				t.Fatalf("expected storyId on new node, got %s", node.StoryID)
 			}
 		}
 	}

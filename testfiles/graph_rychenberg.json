@@ -1,5 +1,5 @@
 {
-  "personId": "story-rychenberg",
+  "storyId": "story-rychenberg",
   "nodes": [
     {
       "id": "n1",
@@ -8,7 +8,7 @@
       "color": "yellow",
       "x": 50,
       "y": 50,
-      "personId": "story-rychenberg"
+      "storyId": "story-rychenberg"
     },
     {
       "id": "n2",
@@ -17,7 +17,7 @@
       "color": "blue",
       "x": 250,
       "y": 50,
-      "personId": "story-rychenberg"
+      "storyId": "story-rychenberg"
     },
     {
       "id": "n3",
@@ -26,7 +26,7 @@
       "color": "blue",
       "x": 250,
       "y": 160,
-      "personId": "story-rychenberg"
+      "storyId": "story-rychenberg"
     },
     {
       "id": "n4",
@@ -35,7 +35,7 @@
       "color": "blue",
       "x": 250,
       "y": 270,
-      "personId": "story-rychenberg"
+      "storyId": "story-rychenberg"
     },
     {
       "id": "n5",
@@ -44,7 +44,7 @@
       "color": "green",
       "x": 470,
       "y": 160,
-      "personId": "story-rychenberg"
+      "storyId": "story-rychenberg"
     },
     {
       "id": "n6",
@@ -53,7 +53,7 @@
       "color": "red",
       "x": 470,
       "y": 270,
-      "personId": "story-rychenberg"
+      "storyId": "story-rychenberg"
     },
     {
       "id": "n7",
@@ -62,7 +62,7 @@
       "color": "purple",
       "x": 470,
       "y": 50,
-      "personId": "story-rychenberg"
+      "storyId": "story-rychenberg"
     }
   ],
   "edges": [
@@ -70,37 +70,37 @@
       "from": "n1",
       "to": "n7",
       "label": "macht nötig",
-      "personId": "story-rychenberg"
+      "storyId": "story-rychenberg"
     },
     {
       "from": "n2",
       "to": "n4",
       "label": "etabliert",
-      "personId": "story-rychenberg"
+      "storyId": "story-rychenberg"
     },
     {
       "from": "n1",
       "to": "n2",
       "label": "Stresstest für",
-      "personId": "story-rychenberg"
+      "storyId": "story-rychenberg"
     },
     {
       "from": "n4",
       "to": "n6",
       "label": "verhindert",
-      "personId": "story-rychenberg"
+      "storyId": "story-rychenberg"
     },
     {
       "from": "n2",
       "to": "n3",
       "label": "etabliert",
-      "personId": "story-rychenberg"
+      "storyId": "story-rychenberg"
     },
     {
       "from": "n4",
       "to": "n5",
       "label": "sichert",
-      "personId": "story-rychenberg"
+      "storyId": "story-rychenberg"
     }
   ]
 }

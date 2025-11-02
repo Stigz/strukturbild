@@ -55,15 +55,15 @@ type Paragraph struct {
 
 // Node represents a node on the strukturbild graph.
 type Node struct {
-	ID       string `json:"id"`
-	Label    string `json:"label"`
-	Detail   string `json:"detail,omitempty"`
-	Type     string `json:"type,omitempty"`
-	Time     string `json:"time,omitempty"`
-	Color    string `json:"color,omitempty"`
-	X        int    `json:"x"`
-	Y        int    `json:"y"`
-	PersonID string `json:"personId"`
+	ID      string `json:"id"`
+	Label   string `json:"label"`
+	Detail  string `json:"detail,omitempty"`
+	Type    string `json:"type,omitempty"`
+	Time    string `json:"time,omitempty"`
+	Color   string `json:"color,omitempty"`
+	X       int    `json:"x"`
+	Y       int    `json:"y"`
+	StoryID string `json:"storyId"`
 }
 
 // Edge connects two nodes on the strukturbild graph.
@@ -95,9 +95,9 @@ type importParagraph struct {
 }
 
 type graphFixture struct {
-	PersonID string `json:"personId"`
-	Nodes    []Node `json:"nodes"`
-	Edges    []Edge `json:"edges"`
+	StoryID string `json:"storyId"`
+	Nodes   []Node `json:"nodes"`
+	Edges   []Edge `json:"edges"`
 }
 
 type inMemoryStore struct {
@@ -235,38 +235,38 @@ func (s *inMemoryStore) setStoryBundle(story Story, paragraphs []Paragraph, node
 	s.paragraphNodes[story.StoryID] = copied
 }
 
-func (s *inMemoryStore) setGraph(personID string, nodes []Node, edges []Edge) {
+func (s *inMemoryStore) setGraph(storyID string, nodes []Node, edges []Edge) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	nodeCopies := make([]Node, len(nodes))
 	copy(nodeCopies, nodes)
 	edgeCopies := make([]Edge, len(edges))
 	copy(edgeCopies, edges)
-	s.nodes[personID] = nodeCopies
-	s.edges[personID] = edgeCopies
+	s.nodes[storyID] = nodeCopies
+	s.edges[storyID] = edgeCopies
 }
 
-func (s *inMemoryStore) getGraph(personID string) ([]Node, []Edge) {
+func (s *inMemoryStore) getGraph(storyID string) ([]Node, []Edge) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	nodes := append([]Node(nil), s.nodes[personID]...)
-	edges := append([]Edge(nil), s.edges[personID]...)
+	nodes := append([]Node(nil), s.nodes[storyID]...)
+	edges := append([]Edge(nil), s.edges[storyID]...)
 	return nodes, edges
 }
 
-func (s *inMemoryStore) upsertGraph(personID string, nodes []Node, edges []Edge) {
+func (s *inMemoryStore) upsertGraph(storyID string, nodes []Node, edges []Edge) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	existingNodes := make(map[string]Node)
-	for _, n := range s.nodes[personID] {
+	for _, n := range s.nodes[storyID] {
 		existingNodes[n.ID] = n
 	}
 	for _, node := range nodes {
 		if strings.TrimSpace(node.ID) == "" {
 			node.ID = uuid.New().String()
 		}
-		node.PersonID = personID
+		node.StoryID = storyID
 		existingNodes[node.ID] = node
 	}
 	nodeKeys := make([]string, 0, len(existingNodes))
@@ -278,10 +278,10 @@ func (s *inMemoryStore) upsertGraph(personID string, nodes []Node, edges []Edge)
 	for _, id := range nodeKeys {
 		upsertedNodes = append(upsertedNodes, existingNodes[id])
 	}
-	s.nodes[personID] = upsertedNodes
+	s.nodes[storyID] = upsertedNodes
 
 	existingEdges := make(map[string]Edge)
-	for _, e := range s.edges[personID] {
+	for _, e := range s.edges[storyID] {
 		key := e.From + "|" + e.To
 		existingEdges[key] = e
 	}
@@ -298,14 +298,14 @@ func (s *inMemoryStore) upsertGraph(personID string, nodes []Node, edges []Edge)
 	for _, key := range edgeKeys {
 		upsertedEdges = append(upsertedEdges, existingEdges[key])
 	}
-	s.edges[personID] = upsertedEdges
+	s.edges[storyID] = upsertedEdges
 }
 
-func (s *inMemoryStore) deleteNode(personID, nodeID string) bool {
+func (s *inMemoryStore) deleteNode(storyID, nodeID string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	nodes := s.nodes[personID]
+	nodes := s.nodes[storyID]
 	found := false
 	filtered := make([]Node, 0, len(nodes))
 	for _, node := range nodes {
@@ -318,9 +318,9 @@ func (s *inMemoryStore) deleteNode(personID, nodeID string) bool {
 	if !found {
 		return false
 	}
-	s.nodes[personID] = filtered
+	s.nodes[storyID] = filtered
 
-	edges := s.edges[personID]
+	edges := s.edges[storyID]
 	filteredEdges := make([]Edge, 0, len(edges))
 	for _, edge := range edges {
 		if edge.From == nodeID || edge.To == nodeID {
@@ -328,9 +328,9 @@ func (s *inMemoryStore) deleteNode(personID, nodeID string) bool {
 		}
 		filteredEdges = append(filteredEdges, edge)
 	}
-	s.edges[personID] = filteredEdges
+	s.edges[storyID] = filteredEdges
 
-	if nodeMap, ok := s.paragraphNodes[personID]; ok {
+	if nodeMap, ok := s.paragraphNodes[storyID]; ok {
 		for pid, nodeIDs := range nodeMap {
 			nodeMap[pid] = removeNodeID(nodeIDs, nodeID)
 		}
@@ -494,8 +494,8 @@ func ddbGetStoryBundle(ctx context.Context, storyID string) (Story, []Paragraph,
 	return st, paras, nodeMap, true, nil
 }
 
-// Graphs as a single item per person (nodes + edges arrays)
-func ddbPutGraph(ctx context.Context, personID string, nodes []Node, edges []Edge) error {
+// Graphs as a single item per story (nodes + edges arrays)
+func ddbPutGraph(ctx context.Context, storyID string, nodes []Node, edges []Edge) error {
 	if graphsTable == "" {
 		return nil
 	}
@@ -506,15 +506,15 @@ func ddbPutGraph(ctx context.Context, personID string, nodes []Node, edges []Edg
 	nList := make([]types.AttributeValue, 0, len(nodes))
 	for _, n := range nodes {
 		nList = append(nList, &types.AttributeValueMemberM{Value: map[string]types.AttributeValue{
-			"id":       &types.AttributeValueMemberS{Value: n.ID},
-			"label":    &types.AttributeValueMemberS{Value: n.Label},
-			"detail":   &types.AttributeValueMemberS{Value: n.Detail},
-			"type":     &types.AttributeValueMemberS{Value: n.Type},
-			"time":     &types.AttributeValueMemberS{Value: n.Time},
-			"color":    &types.AttributeValueMemberS{Value: n.Color},
-			"x":        &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", n.X)},
-			"y":        &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", n.Y)},
-			"personId": &types.AttributeValueMemberS{Value: personID},
+			"id":      &types.AttributeValueMemberS{Value: n.ID},
+			"label":   &types.AttributeValueMemberS{Value: n.Label},
+			"detail":  &types.AttributeValueMemberS{Value: n.Detail},
+			"type":    &types.AttributeValueMemberS{Value: n.Type},
+			"time":    &types.AttributeValueMemberS{Value: n.Time},
+			"color":   &types.AttributeValueMemberS{Value: n.Color},
+			"x":       &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", n.X)},
+			"y":       &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", n.Y)},
+			"storyId": &types.AttributeValueMemberS{Value: storyID},
 		}})
 	}
 	eList := make([]types.AttributeValue, 0, len(edges))
@@ -528,9 +528,9 @@ func ddbPutGraph(ctx context.Context, personID string, nodes []Node, edges []Edg
 		}})
 	}
 	item := map[string]types.AttributeValue{
-		"personId": &types.AttributeValueMemberS{Value: personID},
-		"nodes":    &types.AttributeValueMemberL{Value: nList},
-		"edges":    &types.AttributeValueMemberL{Value: eList},
+		"storyId": &types.AttributeValueMemberS{Value: storyID},
+		"nodes":   &types.AttributeValueMemberL{Value: nList},
+		"edges":   &types.AttributeValueMemberL{Value: eList},
 	}
 	_, err = cli.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: &graphsTable,
@@ -539,7 +539,7 @@ func ddbPutGraph(ctx context.Context, personID string, nodes []Node, edges []Edg
 	return err
 }
 
-func ddbGetGraph(ctx context.Context, personID string) ([]Node, []Edge, bool, error) {
+func ddbGetGraph(ctx context.Context, storyID string) ([]Node, []Edge, bool, error) {
 	if graphsTable == "" {
 		return nil, nil, false, nil
 	}
@@ -550,7 +550,7 @@ func ddbGetGraph(ctx context.Context, personID string) ([]Node, []Edge, bool, er
 	out, err := cli.GetItem(ctx, &dynamodb.GetItemInput{
 		TableName: &graphsTable,
 		Key: map[string]types.AttributeValue{
-			"personId": &types.AttributeValueMemberS{Value: personID},
+			"storyId": &types.AttributeValueMemberS{Value: storyID},
 		},
 	})
 	if err != nil {
@@ -564,15 +564,15 @@ func ddbGetGraph(ctx context.Context, personID string) ([]Node, []Edge, bool, er
 		for _, av := range lv.Value {
 			if mm, ok := av.(*types.AttributeValueMemberM); ok {
 				nodes = append(nodes, Node{
-					ID:       getS(mm.Value["id"]),
-					Label:    getS(mm.Value["label"]),
-					Detail:   getS(mm.Value["detail"]),
-					Type:     getS(mm.Value["type"]),
-					Time:     getS(mm.Value["time"]),
-					Color:    getS(mm.Value["color"]),
-					X:        atoi(getN(mm.Value["x"])),
-					Y:        atoi(getN(mm.Value["y"])),
-					PersonID: personID,
+					ID:      getS(mm.Value["id"]),
+					Label:   getS(mm.Value["label"]),
+					Detail:  getS(mm.Value["detail"]),
+					Type:    getS(mm.Value["type"]),
+					Time:    getS(mm.Value["time"]),
+					Color:   getS(mm.Value["color"]),
+					X:       atoi(getN(mm.Value["x"])),
+					Y:       atoi(getN(mm.Value["y"])),
+					StoryID: storyID,
 				})
 			}
 		}
@@ -592,6 +592,50 @@ func ddbGetGraph(ctx context.Context, personID string) ([]Node, []Edge, bool, er
 		}
 	}
 	return nodes, edges, true, nil
+}
+
+func ddbListStories(ctx context.Context) ([]Story, error) {
+	if storiesTable == "" {
+		return nil, nil
+	}
+	cli, err := getDDB(ctx)
+	if err != nil {
+		return nil, err
+	}
+	projection := "storyId, schoolId, title, createdAt, updatedAt"
+	stories := []Story{}
+	var startKey map[string]types.AttributeValue
+	for {
+		out, err := cli.Scan(ctx, &dynamodb.ScanInput{
+			TableName:            &storiesTable,
+			ProjectionExpression: &projection,
+			ExclusiveStartKey:    startKey,
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range out.Items {
+			id := getS(item["storyId"])
+			if id == "" {
+				continue
+			}
+			stories = append(stories, Story{
+				StoryID:   id,
+				SchoolID:  getS(item["schoolId"]),
+				Title:     getS(item["title"]),
+				CreatedAt: getS(item["createdAt"]),
+				UpdatedAt: getS(item["updatedAt"]),
+			})
+		}
+		if len(out.LastEvaluatedKey) == 0 {
+			break
+		}
+		startKey = out.LastEvaluatedKey
+	}
+	sort.Slice(stories, func(i, j int) bool {
+		return strings.Compare(stories[i].StoryID, stories[j].StoryID) < 0
+	})
+	return stories, nil
 }
 
 // Utility getters from AttributeValue
@@ -712,9 +756,9 @@ func loadFixtureGraph(name string) error {
 		if strings.TrimSpace(fixture.Nodes[i].ID) == "" {
 			fixture.Nodes[i].ID = uuid.New().String()
 		}
-		fixture.Nodes[i].PersonID = fixture.PersonID
+		fixture.Nodes[i].StoryID = fixture.StoryID
 	}
-	dataStore.setGraph(fixture.PersonID, fixture.Nodes, fixture.Edges)
+	dataStore.setGraph(fixture.StoryID, fixture.Nodes, fixture.Edges)
 	return nil
 }
 
@@ -760,6 +804,24 @@ func ListStories(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	stories := dataStore.listStories()
+	if storiesTable != "" {
+		existing := make(map[string]struct{}, len(stories))
+		for _, st := range stories {
+			existing[st.StoryID] = struct{}{}
+		}
+		if remote, err := ddbListStories(r.Context()); err != nil {
+			log.Printf("ListStories: ddbListStories error: %v", err)
+		} else {
+			for _, st := range remote {
+				if _, ok := existing[st.StoryID]; !ok {
+					stories = append(stories, st)
+				}
+			}
+			sort.Slice(stories, func(i, j int) bool {
+				return strings.Compare(stories[i].StoryID, stories[j].StoryID) < 0
+			})
+		}
+	}
 	writeJSON(w, http.StatusOK, stories)
 }
 
@@ -829,18 +891,18 @@ func ImportStory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	story, _, _, err := dataStore.importStory(payload)
-	// Optional persistence
-	if storiesTable != "" {
-		if derr := ddbPutStoryBundle(r.Context(), story, dataStore.paragraphs[story.StoryID], dataStore.paragraphNodes[story.StoryID]); derr != nil {
-			log.Printf("ImportStory: ddbPutStoryBundle error: %v", derr)
-		}
-	}
+	story, paragraphs, nodeMap, err := dataStore.importStory(payload)
 	if err != nil {
 		log.Printf("ImportStory: validation/store error: %v", err)
 		// Treat bad input as 422 Unprocessable Entity for clarity
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
 		return
+	}
+	// Optional persistence
+	if storiesTable != "" {
+		if derr := ddbPutStoryBundle(r.Context(), story, paragraphs, nodeMap); derr != nil {
+			log.Printf("ImportStory: ddbPutStoryBundle error: %v", derr)
+		}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -854,33 +916,41 @@ type strukturResponse struct {
 	ID               string              `json:"id"`
 	Nodes            []Node              `json:"nodes"`
 	Edges            []Edge              `json:"edges"`
-	PersonID         string              `json:"personId"`
+	StoryID          string              `json:"storyId"`
 	Story            *Story              `json:"story,omitempty"`
 	Paragraphs       []Paragraph         `json:"paragraphs,omitempty"`
 	ParagraphNodeMap map[string][]string `json:"paragraphNodeMap,omitempty"`
 }
 
-// GetStrukturByPerson returns the graph and narrative bundle for a person.
-func GetStrukturByPerson(w http.ResponseWriter, r *http.Request) {
+// GetStrukturByStory returns the graph and narrative bundle for a story.
+func GetStrukturByStory(w http.ResponseWriter, r *http.Request) {
 	if err := ensureLoaded(); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	personID := mux.Vars(r)["personId"]
-	if strings.TrimSpace(personID) == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing personId"})
+	storyID := mux.Vars(r)["storyId"]
+	if strings.TrimSpace(storyID) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing storyId"})
 		return
 	}
-	story, paragraphs, nodeMap, ok := dataStore.getStoryFull(personID)
+	story, paragraphs, nodeMap, ok := dataStore.getStoryFull(storyID)
+	if !ok && storiesTable != "" {
+		if st, paras, nmap, found, derr := ddbGetStoryBundle(r.Context(), storyID); derr == nil && found {
+			dataStore.setStoryBundle(st, paras, nmap)
+			story, paragraphs, nodeMap, ok = dataStore.getStoryFull(storyID)
+		} else if derr != nil {
+			log.Printf("GetStrukturByStory: ddbGetStoryBundle error: %v", derr)
+		}
+	}
 	if !ok {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "story not found"})
 		return
 	}
-	nodes, edges := dataStore.getGraph(personID)
+	nodes, edges := dataStore.getGraph(storyID)
 	if len(nodes) == 0 && graphsTable != "" {
-		if ns, es, found, derr := ddbGetGraph(r.Context(), personID); derr == nil && found {
-			dataStore.setGraph(personID, ns, es)
-			nodes, edges = dataStore.getGraph(personID)
+		if ns, es, found, derr := ddbGetGraph(r.Context(), storyID); derr == nil && found {
+			dataStore.setGraph(storyID, ns, es)
+			nodes, edges = dataStore.getGraph(storyID)
 		}
 	}
 	if paragraphs == nil {
@@ -894,7 +964,7 @@ func GetStrukturByPerson(w http.ResponseWriter, r *http.Request) {
 		ID:               "",
 		Nodes:            nodes,
 		Edges:            edges,
-		PersonID:         personID,
+		StoryID:          storyID,
 		Story:            &storyCopy,
 		Paragraphs:       paragraphs,
 		ParagraphNodeMap: nodeMap,
@@ -903,12 +973,12 @@ func GetStrukturByPerson(w http.ResponseWriter, r *http.Request) {
 }
 
 type submitPayload struct {
-	PersonID string `json:"personId"`
-	Nodes    []Node `json:"nodes"`
-	Edges    []Edge `json:"edges"`
+	StoryID string `json:"storyId"`
+	Nodes   []Node `json:"nodes"`
+	Edges   []Edge `json:"edges"`
 }
 
-// SubmitHandler upserts nodes and edges for a person.
+// SubmitHandler upserts nodes and edges for a story.
 func SubmitHandler(w http.ResponseWriter, r *http.Request) {
 	if err := ensureLoaded(); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -919,14 +989,14 @@ func SubmitHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
 		return
 	}
-	if strings.TrimSpace(payload.PersonID) == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "personId is required"})
+	if strings.TrimSpace(payload.StoryID) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "storyId is required"})
 		return
 	}
-	dataStore.upsertGraph(payload.PersonID, payload.Nodes, payload.Edges)
+	dataStore.upsertGraph(payload.StoryID, payload.Nodes, payload.Edges)
 	if graphsTable != "" {
-		ns, es := dataStore.getGraph(payload.PersonID)
-		if derr := ddbPutGraph(r.Context(), payload.PersonID, ns, es); derr != nil {
+		ns, es := dataStore.getGraph(payload.StoryID)
+		if derr := ddbPutGraph(r.Context(), payload.StoryID, ns, es); derr != nil {
 			log.Printf("SubmitHandler: ddbPutGraph error: %v", derr)
 		}
 	}
@@ -940,19 +1010,19 @@ func DeleteNode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	vars := mux.Vars(r)
-	personID := vars["personId"]
+	storyID := vars["storyId"]
 	nodeID := vars["nodeId"]
-	if strings.TrimSpace(personID) == "" || strings.TrimSpace(nodeID) == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing personId or nodeId"})
+	if strings.TrimSpace(storyID) == "" || strings.TrimSpace(nodeID) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing storyId or nodeId"})
 		return
 	}
-	if !dataStore.deleteNode(personID, nodeID) {
+	if !dataStore.deleteNode(storyID, nodeID) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "node not found"})
 		return
 	}
 	if graphsTable != "" {
-		ns, es := dataStore.getGraph(personID)
-		if derr := ddbPutGraph(r.Context(), personID, ns, es); derr != nil {
+		ns, es := dataStore.getGraph(storyID)
+		if derr := ddbPutGraph(r.Context(), storyID, ns, es); derr != nil {
 			log.Printf("DeleteNode: ddbPutGraph error: %v", derr)
 		}
 	}

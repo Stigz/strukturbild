@@ -1,5 +1,5 @@
 # Always run these targets (phony)
-.PHONY: all build zip deploy frontend url test clean stop-local run-local fetch-local-data import import-dir help-import validate validate-dir help-validate validate-verbose help-fix fix-person validate-refs fix-types fix-types-dir
+.PHONY: all build zip deploy frontend url test clean stop-local run-local fetch-local-data import import-dir help-import validate validate-dir help-validate validate-verbose help-fix fix-story validate-refs fix-types fix-types-dir
 # --- Environment / Workspaces (dev/prod split) ---
 ENV ?= prod
 BUCKET_DEV  = strukturbild-frontend-dev-a9141bf9
@@ -105,28 +105,28 @@ frontend-prod:
 
 # --- Batch import JSON to API ---
 # Usage:
-#   make import PERSON=MarcL FILE=marcl.batch.json
-#   make import-dir PERSON=MarcL DIR=imports/
+#   make import STORY=MarcL FILE=marcl.batch.json
+#   make import-dir STORY=MarcL DIR=imports/
 
 help-import:
-	@echo "make import PERSON=<id> FILE=<file.json>    # POST one JSON to /submit"
-	@echo "make import-dir PERSON=<id> DIR=<dir>       # POST each *.json in dir"
+	@echo "make import STORY=<id> FILE=<file.json>    # POST one JSON to /submit"
+	@echo "make import-dir STORY=<id> DIR=<dir>       # POST each *.json in dir"
 
 import:
-	@if [ -z "$(PERSON)" ] || [ -z "$(FILE)" ]; then \
-	  echo "Usage: make import PERSON=<id> FILE=<file.json>"; exit 1; \
+	@if [ -z "$(STORY)" ] || [ -z "$(FILE)" ]; then \
+	  echo "Usage: make import STORY=<id> FILE=<file.json>"; exit 1; \
 	fi
-	@echo "→ Importing $(FILE) for $(PERSON) -> $(API_URL)/submit"
+	@echo "→ Importing $(FILE) for $(STORY) -> $(API_URL)/submit"
 	@curl -sS -X POST "$(API_URL)/submit" \
 	  -H 'Content-Type: application/json' \
 	  --data-binary @$(FILE) | sed -e 's/^/  /'
 
 import-dir:
-	@if [ -z "$(PERSON)" ] || [ -z "$(DIR)" ]; then \
-	  echo "Usage: make import-dir PERSON=<id> DIR=<dir>"; exit 1; \
+	@if [ -z "$(STORY)" ] || [ -z "$(DIR)" ]; then \
+	  echo "Usage: make import-dir STORY=<id> DIR=<dir>"; exit 1; \
 	fi
 	@for f in $(DIR)/*.json; do \
-	  echo "→ Importing $$f for $(PERSON) -> $(API_URL)/submit"; \
+	  echo "→ Importing $$f for $(STORY) -> $(API_URL)/submit"; \
 	  curl -sS -X POST "$(API_URL)/submit" \
 	    -H 'Content-Type: application/json' \
 	    --data-binary @$$f | sed -e 's/^/  /'; \
@@ -134,73 +134,73 @@ import-dir:
 
 # --- Validate JSON before import ---
 # Usage:
-#   make validate PERSON=MarcL FILE=Data/MarcL.json
-#   make validate-dir PERSON=MarcL DIR=Data
+#   make validate STORY=MarcL FILE=Data/MarcL.json
+#   make validate-dir STORY=MarcL DIR=Data
 
 help-validate:
-	@echo "make validate PERSON=<id> FILE=<file.json>    # Check JSON shape & personId & duplicate node ids"
-	@echo "make validate-dir PERSON=<id> DIR=<dir>       # Validate each *.json in dir"
+	@echo "make validate STORY=<id> FILE=<file.json>    # Check JSON shape & storyId & duplicate node ids"
+	@echo "make validate-dir STORY=<id> DIR=<dir>       # Validate each *.json in dir"
 
 validate:
-	@if [ -z "$(PERSON)" ] || [ -z "$(FILE)" ]; then \
-	  echo "Usage: make validate PERSON=<id> FILE=<file.json>"; exit 1; \
+	@if [ -z "$(STORY)" ] || [ -z "$(FILE)" ]; then \
+	  echo "Usage: make validate STORY=<id> FILE=<file.json>"; exit 1; \
 	fi
 	@if [ ! -f "$(FILE)" ]; then \
 	  echo "❌ File not found: $(FILE)"; exit 1; \
 	fi
-	@echo "🔎 Validating $(FILE) for PERSON=$(PERSON) ..."
+	@echo "🔎 Validating $(FILE) for STORY=$(STORY) ..."
 	@# 1) Must be valid JSON
 	@jq empty "$(FILE)" >/dev/null 2>&1 || { echo "❌ Not valid JSON: $(FILE)"; exit 1; }
-	@# 2) Top-level personId must match
-	@env PERSON="$(PERSON)" jq -e '.personId == env.PERSON' "$(FILE)" >/dev/null || { echo "❌ Top-level .personId does not match $(PERSON)"; exit 1; }
-	@# 3) All nodes[].personId must match
-	@env PERSON="$(PERSON)" jq -e '((.nodes // []) | map(select((.personId // "") != env.PERSON)) | length) == 0' "$(FILE)" >/dev/null || { echo "❌ Some nodes[].personId differ from $(PERSON)"; exit 1; }
-	@# 4) All edges[].personId must match
-	@env PERSON="$(PERSON)" jq -e '((.edges // []) | map(select((.personId // "") != env.PERSON)) | length) == 0' "$(FILE)" >/dev/null || { echo "❌ Some edges[].personId differ from $(PERSON)"; exit 1; }
+	@# 2) Top-level storyId must match
+	@env STORY="$(STORY)" jq -e '.storyId == env.STORY' "$(FILE)" >/dev/null || { echo "❌ Top-level .storyId does not match $(STORY)"; exit 1; }
+	@# 3) All nodes[].storyId must match
+	@env STORY="$(STORY)" jq -e '((.nodes // []) | map(select((.storyId // "") != env.STORY)) | length) == 0' "$(FILE)" >/dev/null || { echo "❌ Some nodes[].storyId differ from $(STORY)"; exit 1; }
+	@# 4) All edges[].storyId must match
+	@env STORY="$(STORY)" jq -e '((.edges // []) | map(select((.storyId // "") != env.STORY)) | length) == 0' "$(FILE)" >/dev/null || { echo "❌ Some edges[].storyId differ from $(STORY)"; exit 1; }
 	@# 5) No duplicate node ids
 	@jq -e '((.nodes // []) | map(.id) | length) == ((.nodes // []) | map(.id) | unique | length)' "$(FILE)" >/dev/null || { echo "❌ Duplicate node ids detected in .nodes[].id"; exit 1; }
 	@echo "✅ Validation passed for $(FILE)"
 
 validate-dir:
-	@if [ -z "$(PERSON)" ] || [ -z "$(DIR)" ]; then \
-	  echo "Usage: make validate-dir PERSON=<id> DIR=<dir>"; exit 1; \
+	@if [ -z "$(STORY)" ] || [ -z "$(DIR)" ]; then \
+	  echo "Usage: make validate-dir STORY=<id> DIR=<dir>"; exit 1; \
 	fi
 	@for f in $(DIR)/*.json; do \
 	  echo "---"; \
-	  $(MAKE) --no-print-directory validate PERSON=$(PERSON) FILE=$$f || exit $$?; \
+	  $(MAKE) --no-print-directory validate STORY=$(STORY) FILE=$$f || exit $$?; \
 	done
 	@echo "✅ All JSON files in $(DIR) passed validation"
 
 
 # --- Verbose validator & fixer ---
 # Usage:
-#   make validate-verbose PERSON=MarcL FILE=Data/MarcL.json
-#   make fix-person PERSON=MarcL FILE=Data/MarcL.json
+#   make validate-verbose STORY=MarcL FILE=Data/MarcL.json
+#   make fix-story STORY=MarcL FILE=Data/MarcL.json
 #   make validate-refs FILE=Data/MarcL.json
 
 help-fix:
-	@echo "make fix-person PERSON=<id> FILE=<file.json>   # Set top-level + all nodes/edges personId to <id>"
-	@echo "make validate-verbose PERSON=<id> FILE=<file.json>  # Print offending nodes/edges for personId + duplicates"
+	@echo "make fix-story STORY=<id> FILE=<file.json>   # Set top-level + all nodes/edges storyId to <id>"
+	@echo "make validate-verbose STORY=<id> FILE=<file.json>  # Print offending nodes/edges for storyId + duplicates"
 	@echo "make validate-refs FILE=<file.json>  # Ensure edges reference existing node ids and list offenders"
 
 validate-verbose:
-	@if [ -z "$(PERSON)" ] || [ -z "$(FILE)" ]; then \
-	  echo "Usage: make validate-verbose PERSON=<id> FILE=<file.json>"; exit 1; \
+	@if [ -z "$(STORY)" ] || [ -z "$(FILE)" ]; then \
+	  echo "Usage: make validate-verbose STORY=<id> FILE=<file.json>"; exit 1; \
 	fi
-	@echo "🔎 Verbose check for $(FILE) (PERSON=$(PERSON))"
-	@echo "— Top-level personId:" && jq -r '.personId // "(missing)"' "$(FILE)"
-	@echo "— Nodes with wrong/missing personId:" && env PERSON="$(PERSON)" jq -r '(.nodes // []) | map(select((.personId // "") != env.PERSON))' "$(FILE)"
-	@echo "— Edges with wrong/missing personId:" && env PERSON="$(PERSON)" jq -r '(.edges // []) | map(select((.personId // "") != env.PERSON))' "$(FILE)"
+	@echo "🔎 Verbose check for $(FILE) (STORY=$(STORY))"
+	@echo "— Top-level storyId:" && jq -r '.storyId // "(missing)"' "$(FILE)"
+	@echo "— Nodes with wrong/missing storyId:" && env STORY="$(STORY)" jq -r '(.nodes // []) | map(select((.storyId // "") != env.STORY))' "$(FILE)"
+	@echo "— Edges with wrong/missing storyId:" && env STORY="$(STORY)" jq -r '(.edges // []) | map(select((.storyId // "") != env.STORY))' "$(FILE)"
 	@echo "— Duplicate node ids:" && jq -r '((.nodes // []) | group_by(.id) | map(select(length>1) | {id: .[0].id, count: length}))' "$(FILE)"
 
-fix-person:
-	@if [ -z "$(PERSON)" ] || [ -z "$(FILE)" ]; then \
-	  echo "Usage: make fix-person PERSON=<id> FILE=<file.json>"; exit 1; \
+fix-story:
+	@if [ -z "$(STORY)" ] || [ -z "$(FILE)" ]; then \
+	  echo "Usage: make fix-story STORY=<id> FILE=<file.json>"; exit 1; \
 	fi
-	@echo "🛠️  Setting personId=$(PERSON) on top-level, all nodes, and all edges in $(FILE) ..."
+	@echo "🛠️  Setting storyId=$(STORY) on top-level, all nodes, and all edges in $(FILE) ..."
 	@tmp="$(FILE).tmp"; \
-	env PERSON="$(PERSON)" jq '.personId=env.PERSON | .nodes=((.nodes // []) | map(.personId=env.PERSON)) | .edges=((.edges // []) | map(.personId=env.PERSON))' "$(FILE)" > "$$tmp" && mv "$$tmp" "$(FILE)"
-	@echo "✅ Fixed personId in $(FILE)"
+	env STORY="$(STORY)" jq '.storyId=env.STORY | .nodes=((.nodes // []) | map(.storyId=env.STORY)) | .edges=((.edges // []) | map(.storyId=env.STORY))' "$(FILE)" > "$$tmp" && mv "$$tmp" "$(FILE)"
+	@echo "✅ Fixed storyId in $(FILE)"
 
 validate-refs:
 	@if [ -z "$(FILE)" ]; then \
@@ -260,38 +260,38 @@ fix-types-dir:
 	@echo "✅ All JSON files in $(DIR) migrated"
 # --- Convenience aliases for frontend deploy ---
 # --- Data ops (wipe & import via API) ----------------------------------------
-# These helpers let you wipe a person's graph and re-import both STORY and GRAPH
+# These helpers let you wipe a story's graph and re-import both STORY and GRAPH
 # JSON through the existing HTTP API (no direct DynamoDB access required).
 
 help-data:
-	@echo "make wipe-graph PERSON=<id>                      # Delete ALL nodes for <id> via API"
+	@echo "make wipe-graph STORY=<id>                      # Delete ALL nodes for <id> via API"
 	@echo "make import-story FILE=<story.json>              # POST story+paragraphs+paraNodeMap to /api/stories/import"
-	@echo "make import-graph PERSON=<id> FILE=<graph.json>  # POST nodes+edges to /submit (wrapper of 'make import')"
-	@echo "make reset-person PERSON=<id> STORY_FILE=<story.json> GRAPH_FILE=<graph.json>"
-	@echo "                                               # wipe graph, then import story and graph"
+	@echo "make import-graph STORY=<id> FILE=<graph.json>  # POST nodes+edges to /submit (wrapper of 'make import')"
+        @echo "make reset-story STORY=<id> STORY_FILE=<story.json> GRAPH_FILE=<graph.json>"
+        @echo "                                               # wipe graph, then import story and graph"
 
-# Delete all nodes for a personId using the existing DELETE /struktur/<person>/<node> endpoint.
+# Delete all nodes for a storyId using the existing DELETE /struktur/<story>/<node> endpoint.
 # (Edges connected to a node are expected to be removed server-side by your handler.)
 wipe-graph:
-	@if [ -z "$(PERSON)" ]; then \
-	  echo "Usage: make wipe-graph PERSON=<id> [FILE=<graph.json>]"; exit 1; \
+	@if [ -z "$(STORY)" ]; then \
+	  echo "Usage: make wipe-graph STORY=<id> [FILE=<graph.json>]"; exit 1; \
 	fi
 	@API_URL="$$(cd terraform && terraform output -raw api_url)"; \
-	echo "🧨 Wiping graph for PERSON=$(PERSON) at $$API_URL ..."; \
+	echo "🧨 Wiping graph for STORY=$(STORY) at $$API_URL ..."; \
 	if [ -n "$(FILE)" ] && [ -f "$(FILE)" ]; then \
 	  ids="$$(jq -r '(.nodes // []) | map(.id) | .[]' "$(FILE)")"; \
 	else \
-	  ids="$$(curl -s "$$API_URL/struktur/$(PERSON)" | jq -r '.nodes[]?.id')"; \
+	  ids="$$(curl -s "$$API_URL/struktur/$(STORY)" | jq -r '.nodes[]?.id')"; \
 	fi; \
 	if [ -z "$$ids" ]; then \
 	  echo "  (no nodes to delete)"; \
 	else \
 	  for id in $$ids; do \
-	    echo "  - DELETE /struktur/$(PERSON)/$$id"; \
-	    curl -s -X DELETE "$$API_URL/struktur/$(PERSON)/$$id" >/dev/null; \
+	    echo "  - DELETE /struktur/$(STORY)/$$id"; \
+	    curl -s -X DELETE "$$API_URL/struktur/$(STORY)/$$id" >/dev/null; \
 	  done; \
 	fi; \
-	echo "✅ Done wipe-graph for $(PERSON)"
+	echo "✅ Done wipe-graph for $(STORY)"
 
 # Import STORY (metadata + paragraphs + paragraphNodeMap) in the new MVP shape.
 # Expects FILE to be your import JSON (e.g., testfiles/import_rychenberg.json).
@@ -305,23 +305,23 @@ import-story:
 	  --data-binary @$(FILE) | sed -e 's/^/  /'
 	@echo "✅ Story import complete."
 
-# Import GRAPH for a personId (wrapper around existing 'import' target).
+# Import GRAPH for a storyId (wrapper around existing 'import' target).
 # Validates refs first to catch missing node ids in edges.
 import-graph:
-	@if [ -z "$(PERSON)" ] || [ -z "$(FILE)" ]; then \
-	  echo "Usage: make import-graph PERSON=<id> FILE=<graph.json>"; exit 1; \
+	@if [ -z "$(STORY)" ] || [ -z "$(FILE)" ]; then \
+	  echo "Usage: make import-graph STORY=<id> FILE=<graph.json>"; exit 1; \
 	fi
 	@$(MAKE) --no-print-directory validate-refs FILE=$(FILE)
-	@echo "🗺️  Importing GRAPH from $(FILE) for PERSON=$(PERSON)"
-	@$(MAKE) --no-print-directory import PERSON=$(PERSON) FILE=$(FILE)
+	@echo "🗺️  Importing GRAPH from $(FILE) for STORY=$(STORY)"
+	@$(MAKE) --no-print-directory import STORY=$(STORY) FILE=$(FILE)
 	@echo "✅ Graph import complete."
 
-# One-stop reset for a given person: wipe graph, import story, then import graph.
-reset-person:
-	@if [ -z "$(PERSON)" ] || [ -z "$(STORY_FILE)" ] || [ -z "$(GRAPH_FILE)" ]; then \
-	  echo "Usage: make reset-person PERSON=<id> STORY_FILE=<story.json> GRAPH_FILE=<graph.json>"; exit 1; \
-	fi
-	@$(MAKE) --no-print-directory wipe-graph PERSON=$(PERSON)
-	@$(MAKE) --no-print-directory import-story FILE=$(STORY_FILE)
-	@$(MAKE) --no-print-directory import-graph PERSON=$(PERSON) FILE=$(GRAPH_FILE)
-	@echo "✨ Finished reset-person for $(PERSON)"
+# One-stop reset for a given story: wipe graph, import story, then import graph.
+reset-story:
+        @if [ -z "$(STORY)" ] || [ -z "$(STORY_FILE)" ] || [ -z "$(GRAPH_FILE)" ]; then \
+          echo "Usage: make reset-story STORY=<id> STORY_FILE=<story.json> GRAPH_FILE=<graph.json>"; exit 1; \
+        fi
+        @$(MAKE) --no-print-directory wipe-graph STORY=$(STORY)
+        @$(MAKE) --no-print-directory import-story FILE=$(STORY_FILE)
+        @$(MAKE) --no-print-directory import-graph STORY=$(STORY) FILE=$(GRAPH_FILE)
+        @echo "✨ Finished reset-story for $(STORY)"
