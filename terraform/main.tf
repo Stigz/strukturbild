@@ -220,7 +220,8 @@ resource "aws_iam_policy" "dynamodb_access" {
         "dynamodb:UpdateItem",
         "dynamodb:GetItem",
         "dynamodb:Query",
-        "dynamodb:DeleteItem"
+        "dynamodb:DeleteItem",
+        "dynamodb:Scan"
       ],
       Effect   = "Allow",
       Resource = aws_dynamodb_table.struktur_data.arn
