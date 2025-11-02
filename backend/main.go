@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"os"
@@ -66,10 +67,13 @@ type Edge struct {
 }
 
 type Strukturbild struct {
-	ID       string `json:"id" dynamodbav:"id"` // Add this line
-	Nodes    []Node `json:"nodes"`
-	Edges    []Edge `json:"edges"`
-	PersonID string `json:"personId"`
+	ID                 string                       `json:"id" dynamodbav:"id"` // Add this line
+	Nodes              []Node                       `json:"nodes"`
+	Edges              []Edge                       `json:"edges"`
+	PersonID           string                       `json:"personId"`
+	Story              *storyapi.Story              `json:"story,omitempty"`
+	Paragraphs         []storyapi.Paragraph         `json:"paragraphs,omitempty"`
+	DetailsByParagraph map[string][]storyapi.Detail `json:"detailsByParagraph,omitempty"`
 }
 
 type DBItem struct {
@@ -174,6 +178,18 @@ func getHandler(ctx context.Context, request events.APIGatewayProxyRequest) (eve
 		Nodes:    nodes,
 		Edges:    edges,
 		PersonID: id,
+	}
+
+	if storySvc != nil {
+		full, err := storySvc.GetFullStory(ctx, id)
+		if err == nil {
+			storyCopy := full.Story
+			sb.Story = &storyCopy
+			sb.Paragraphs = full.Paragraphs
+			sb.DetailsByParagraph = full.DetailsByParagraph
+		} else if !errors.Is(err, storyapi.ErrStoryNotFound) {
+			log.Printf("❌ Failed to fetch story bundle for %s: %v", id, err)
+		}
 	}
 
 	body, err := json.Marshal(sb)
@@ -482,11 +498,11 @@ func handleStoryRoutes(ctx context.Context, req events.APIGatewayProxyRequest, m
 		return storySvc.HandleImportStory(ctx, req)
 	case method == "GET" && trimmed == "stories":
 		return storySvc.HandleListStories(ctx, req)
-	case method == "POST" && len(parts) == 4 && parts[0] == "stories" && parts[2] == "paragraphs":
+	case method == "POST" && len(parts) == 3 && parts[0] == "stories" && parts[2] == "paragraphs":
 		storyID := parts[1]
 		req.PathParameters = map[string]string{"storyId": storyID}
 		return storySvc.HandleCreateParagraph(ctx, req)
-	case method == "GET" && len(parts) == 4 && parts[0] == "stories" && parts[2] == "full":
+	case method == "GET" && len(parts) == 3 && parts[0] == "stories" && parts[2] == "full":
 		storyID := parts[1]
 		req.PathParameters = map[string]string{"storyId": storyID}
 		return storySvc.HandleGetFullStory(ctx, req)

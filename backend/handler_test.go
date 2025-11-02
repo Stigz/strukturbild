@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -82,5 +83,89 @@ func TestGetHandler(t *testing.T) {
 
 	if returned.PersonID != testID {
 		t.Errorf("Unexpected data: %+v", returned)
+	}
+}
+
+func TestGetHandlerIncludesStoryBundle(t *testing.T) {
+	setupTestServices()
+	ctx := context.Background()
+	storyID := "story-bundle-test"
+
+	sbPayload := Strukturbild{
+		PersonID: storyID,
+		Nodes: []Node{{
+			ID:       "node-1",
+			Label:    "Node",
+			X:        0,
+			Y:        0,
+			PersonID: storyID,
+		}},
+	}
+	body, _ := json.Marshal(sbPayload)
+	if _, err := handler(ctx, events.APIGatewayProxyRequest{HTTPMethod: "POST", Path: "/submit", Body: string(body)}); err != nil {
+		t.Fatalf("failed to seed strukturbild: %v", err)
+	}
+
+	storyBody := fmt.Sprintf(`{"storyId":"%s","schoolId":"ry","title":"Title"}`, storyID)
+	if _, err := storySvc.HandleCreateStory(ctx, events.APIGatewayProxyRequest{HTTPMethod: "POST", Body: storyBody}); err != nil {
+		t.Fatalf("failed to create story: %v", err)
+	}
+
+	paraResp, err := storySvc.HandleCreateParagraph(ctx, events.APIGatewayProxyRequest{
+		HTTPMethod:     "POST",
+		PathParameters: map[string]string{"storyId": storyID},
+		Body:           `{"index":1,"title":"Intro","bodyMd":"Text","citations":[]}`,
+	})
+	if err != nil {
+		t.Fatalf("failed to create paragraph: %v", err)
+	}
+	var paraPayload map[string]string
+	if err := json.Unmarshal([]byte(paraResp.Body), &paraPayload); err != nil {
+		t.Fatalf("failed to parse paragraph response: %v", err)
+	}
+	paragraphID := paraPayload["id"]
+	if paragraphID == "" {
+		t.Fatalf("paragraph id missing in response: %+v", paraPayload)
+	}
+
+	detailBody := fmt.Sprintf(`{"storyId":"%s","kind":"quote","transcriptId":"ry","startMinute":0,"endMinute":1,"text":"Zitat"}`, storyID)
+	if _, err := storySvc.HandleCreateDetail(ctx, events.APIGatewayProxyRequest{
+		HTTPMethod:     "POST",
+		PathParameters: map[string]string{"paragraphId": paragraphID},
+		Body:           detailBody,
+	}); err != nil {
+		t.Fatalf("failed to create detail: %v", err)
+	}
+
+	resp, err := getHandler(ctx, events.APIGatewayProxyRequest{
+		HTTPMethod:     "GET",
+		Path:           "/struktur/" + storyID,
+		PathParameters: map[string]string{"id": storyID},
+	})
+	if err != nil {
+		t.Fatalf("getHandler returned error: %v", err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("unexpected status: %d body=%s", resp.StatusCode, resp.Body)
+	}
+
+	var returned Strukturbild
+	if err := json.Unmarshal([]byte(resp.Body), &returned); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if returned.Story == nil {
+		t.Fatalf("expected story payload, got nil: %+v", returned)
+	}
+	if returned.Story.Title != "Title" {
+		t.Errorf("unexpected story title: %s", returned.Story.Title)
+	}
+	if len(returned.Paragraphs) != 1 {
+		t.Fatalf("expected 1 paragraph, got %d", len(returned.Paragraphs))
+	}
+	if returned.Paragraphs[0].ParagraphID != paragraphID {
+		t.Errorf("unexpected paragraph id: %s", returned.Paragraphs[0].ParagraphID)
+	}
+	if len(returned.DetailsByParagraph[paragraphID]) != 1 {
+		t.Fatalf("expected detail for paragraph, got %+v", returned.DetailsByParagraph)
 	}
 }

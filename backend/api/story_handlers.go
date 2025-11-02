@@ -36,6 +36,9 @@ func NewStoryService(client DynamoClient, tableName string, cors func() map[stri
 	return &StoryService{dynamo: client, tableName: tableName, corsSource: cors}
 }
 
+// ErrStoryNotFound is returned when no story bundle exists for the requested ID.
+var ErrStoryNotFound = errors.New("story not found")
+
 // Data model payloads --------------------------------------------------------
 
 type Story struct {
@@ -341,23 +344,11 @@ func (s *StoryService) HandleGetFullStory(ctx context.Context, req events.APIGat
 	if storyID == "" {
 		return s.errorResponse(400, "Missing storyId in path")
 	}
-	story, paragraphs, details, err := s.fetchStoryBundle(ctx, storyID)
+	full, err := s.GetFullStory(ctx, storyID)
 	if err != nil {
 		return s.errorResponse(404, err.Error())
 	}
-	detailsByParagraph := map[string][]Detail{}
-	for _, det := range details {
-		detailsByParagraph[det.ParagraphID] = append(detailsByParagraph[det.ParagraphID], det)
-	}
-	sort.Slice(paragraphs, func(i, j int) bool {
-		return paragraphs[i].Index < paragraphs[j].Index
-	})
-	payload := StoryFull{
-		Story:              story,
-		Paragraphs:         paragraphs,
-		DetailsByParagraph: detailsByParagraph,
-	}
-	return s.jsonResponse(200, payload)
+	return s.jsonResponse(200, full)
 }
 
 func (s *StoryService) HandleListStories(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
@@ -637,12 +628,29 @@ func (s *StoryService) fetchStoryBundle(ctx context.Context, storyID string) (St
 		}
 	}
 	if !storyFound {
-		return Story{}, nil, nil, errors.New("story not found")
+		return Story{}, nil, nil, ErrStoryNotFound
 	}
 	sort.Slice(paragraphs, func(i, j int) bool {
 		return paragraphs[i].Index < paragraphs[j].Index
 	})
 	return story, paragraphs, details, nil
+}
+
+// GetFullStory returns the structured story bundle for the provided story ID.
+func (s *StoryService) GetFullStory(ctx context.Context, storyID string) (*StoryFull, error) {
+	story, paragraphs, details, err := s.fetchStoryBundle(ctx, storyID)
+	if err != nil {
+		return nil, err
+	}
+	detailsByParagraph := make(map[string][]Detail, len(paragraphs))
+	for _, det := range details {
+		detailsByParagraph[det.ParagraphID] = append(detailsByParagraph[det.ParagraphID], det)
+	}
+	return &StoryFull{
+		Story:              story,
+		Paragraphs:         paragraphs,
+		DetailsByParagraph: detailsByParagraph,
+	}, nil
 }
 
 func paragraphSortKey(index int, paragraphID string) string {
