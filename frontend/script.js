@@ -1,27 +1,4 @@
-function resolveApiBaseUrl() {
-  if (window.STRUKTURBILD_API_URL) return window.STRUKTURBILD_API_URL;
-  if (typeof document !== 'undefined') {
-    const meta = document.querySelector('meta[name="strukturbild-api"]');
-    if (meta && typeof meta.content === 'string' && meta.content.trim()) {
-      return meta.content.trim();
-    }
-    const taggedScript = document.querySelector('script[data-api-base]');
-    if (
-      taggedScript &&
-      taggedScript.dataset &&
-      typeof taggedScript.dataset.apiBase === 'string' &&
-      taggedScript.dataset.apiBase.trim()
-    ) {
-      return taggedScript.dataset.apiBase.trim();
-    }
-  }
-  if (typeof window !== 'undefined' && window.location && window.location.origin) {
-    return window.location.origin;
-  }
-  return '';
-}
-
-const API_BASE_URL = resolveApiBaseUrl();
+const API_BASE_URL = window.STRUKTURBILD_API_URL
 const IS_STORY_MODE = window.location.pathname.startsWith("/stories/");
 const STORY_ID = (window.location.pathname.match(/\/stories\/([^/]+)/) || [])[1] || "";
 
