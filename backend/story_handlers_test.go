@@ -1,261 +1,294 @@
 package main
 
 import (
-	"context"
+	"bytes"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
-
-	"github.com/aws/aws-lambda-go/events"
-	storyapi "strukturbild/api"
 )
 
-func TestStoryCreateParagraphAndFetch(t *testing.T) {
-	setupTestServices()
-	ctx := context.Background()
-
-	storyReq := events.APIGatewayProxyRequest{Body: `{"schoolId":"rychenberg","title":"Story Title"}`}
-	resp, err := storySvc.HandleCreateStory(ctx, storyReq)
-	if err != nil || resp.StatusCode != 200 {
-		t.Fatalf("create story failed: %v status=%d", err, resp.StatusCode)
-	}
-	var storyRes map[string]string
-	if err := json.Unmarshal([]byte(resp.Body), &storyRes); err != nil {
-		t.Fatalf("unmarshal story response: %v", err)
-	}
-	storyID := storyRes["id"]
-	if storyID == "" {
-		t.Fatalf("expected story id")
-	}
-
-	paraReq1 := events.APIGatewayProxyRequest{Body: `{"index":1,"bodyMd":"Paragraph 1","citations":[]}`,
-		PathParameters: map[string]string{"storyId": storyID}}
-	resp, err = storySvc.HandleCreateParagraph(ctx, paraReq1)
-	if err != nil || resp.StatusCode != 200 {
-		t.Fatalf("create paragraph 1 failed: %v status=%d", err, resp.StatusCode)
-	}
-
-	paraReq2 := events.APIGatewayProxyRequest{Body: `{"index":2,"bodyMd":"Paragraph 2","citations":[]}`,
-		PathParameters: map[string]string{"storyId": storyID}}
-	resp, err = storySvc.HandleCreateParagraph(ctx, paraReq2)
-	if err != nil || resp.StatusCode != 200 {
-		t.Fatalf("create paragraph 2 failed: %v status=%d", err, resp.StatusCode)
-	}
-
-	getReq := events.APIGatewayProxyRequest{PathParameters: map[string]string{"storyId": storyID}}
-	resp, err = storySvc.HandleGetFullStory(ctx, getReq)
-	if err != nil || resp.StatusCode != 200 {
-		t.Fatalf("get full story failed: %v status=%d", err, resp.StatusCode)
-	}
-	var full storyapi.StoryFull
-	if err := json.Unmarshal([]byte(resp.Body), &full); err != nil {
-		t.Fatalf("unmarshal story full: %v", err)
-	}
-	if len(full.Paragraphs) != 2 {
-		t.Fatalf("expected 2 paragraphs, got %d", len(full.Paragraphs))
-	}
-	if full.Paragraphs[0].Index != 1 || full.Paragraphs[1].Index != 2 {
-		t.Fatalf("paragraphs not ordered: %+v", full.Paragraphs)
+func setupFixtures(t *testing.T) {
+	t.Helper()
+	resetStoreForTest()
+	setFixturesLoaderForTest(loadDefaultFixtures)
+	if err := ensureLoaded(); err != nil {
+		t.Fatalf("failed to load fixtures: %v", err)
 	}
 }
 
-func TestUpdateParagraphReorder(t *testing.T) {
-	setupTestServices()
-	ctx := context.Background()
+func setupEmptyStore(t *testing.T) {
+	t.Helper()
+	resetStoreForTest()
+	setFixturesLoaderForTest(nil)
+}
 
-	storyReq := events.APIGatewayProxyRequest{Body: `{"schoolId":"rychenberg","title":"Story Title"}`}
-	resp, _ := storySvc.HandleCreateStory(ctx, storyReq)
-	var storyRes map[string]string
-	if err := json.Unmarshal([]byte(resp.Body), &storyRes); err != nil {
-		t.Fatalf("unmarshal story response: %v", err)
-	}
-	storyID := storyRes["id"]
+func TestGetStoryFullIncludesParagraphNodeMap(t *testing.T) {
+	setupFixtures(t)
 
-	// create two paragraphs
-	storySvc.HandleCreateParagraph(ctx, events.APIGatewayProxyRequest{Body: `{"index":1,"bodyMd":"First","citations":[]}`,
-		PathParameters: map[string]string{"storyId": storyID}})
-	storySvc.HandleCreateParagraph(ctx, events.APIGatewayProxyRequest{Body: `{"index":2,"bodyMd":"Second","citations":[]}`,
-		PathParameters: map[string]string{"storyId": storyID}})
+	router := newRouter()
+	req := httptest.NewRequest(http.MethodGet, "/api/stories/story-rychenberg/full", nil)
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
 
-	fullResp, _ := storySvc.HandleGetFullStory(ctx, events.APIGatewayProxyRequest{PathParameters: map[string]string{"storyId": storyID}})
-	var full storyapi.StoryFull
-	if err := json.Unmarshal([]byte(fullResp.Body), &full); err != nil {
-		t.Fatalf("unmarshal full story: %v", err)
-	}
-	if len(full.Paragraphs) != 2 {
-		t.Fatalf("expected 2 paragraphs")
-	}
-	target := full.Paragraphs[0]
-
-	patchPayload := map[string]interface{}{
-		"storyId": storyID,
-		"index":   2,
-		"bodyMd":  "Updated",
-	}
-	body, _ := json.Marshal(patchPayload)
-	patchReq := events.APIGatewayProxyRequest{
-		Body:           string(body),
-		PathParameters: map[string]string{"paragraphId": target.ParagraphID},
-	}
-	resp, err := storySvc.HandleUpdateParagraph(ctx, patchReq)
-	if err != nil || resp.StatusCode != 200 {
-		t.Fatalf("patch failed: %v status=%d", err, resp.StatusCode)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", resp.Code)
 	}
 
-	// swap second paragraph to index 1 to simulate reorder conflict resolution
-	other := full.Paragraphs[1]
-	patchPayload = map[string]interface{}{
-		"storyId": storyID,
-		"index":   1,
+	var payload storyFullResponse
+	if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
 	}
-	body, _ = json.Marshal(patchPayload)
-	_, err = storySvc.HandleUpdateParagraph(ctx, events.APIGatewayProxyRequest{
-		Body:           string(body),
-		PathParameters: map[string]string{"paragraphId": other.ParagraphID},
-	})
+
+	if len(payload.Paragraphs) == 0 {
+		t.Fatalf("expected paragraphs in response")
+	}
+	if payload.ParagraphNodeMap == nil {
+		t.Fatalf("expected paragraphNodeMap in response")
+	}
+	firstID := payload.Paragraphs[0].ParagraphID
+	if _, ok := payload.ParagraphNodeMap[firstID]; !ok {
+		t.Fatalf("expected paragraphNodeMap entry for %s", firstID)
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(resp.Body.Bytes(), &raw); err != nil {
+		t.Fatalf("unmarshal raw response: %v", err)
+	}
+	if _, exists := raw["detailsByParagraph"]; exists {
+		t.Fatalf("unexpected detailsByParagraph key in response")
+	}
+}
+
+func TestGetStrukturIncludesParagraphNodeMap(t *testing.T) {
+	setupFixtures(t)
+
+	router := newRouter()
+	req := httptest.NewRequest(http.MethodGet, "/struktur/story-rychenberg", nil)
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", resp.Code)
+	}
+
+	var payload strukturResponse
+	if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+
+	if payload.Story == nil {
+		t.Fatalf("expected story in struktur response")
+	}
+	if len(payload.Paragraphs) == 0 {
+		t.Fatalf("expected paragraphs in struktur response")
+	}
+	if len(payload.Nodes) == 0 {
+		t.Fatalf("expected nodes in struktur response")
+	}
+	if payload.ParagraphNodeMap == nil || len(payload.ParagraphNodeMap) == 0 {
+		t.Fatalf("expected paragraphNodeMap entries")
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(resp.Body.Bytes(), &raw); err != nil {
+		t.Fatalf("unmarshal raw response: %v", err)
+	}
+	if _, exists := raw["detailsByParagraph"]; exists {
+		t.Fatalf("unexpected detailsByParagraph key in struktur response")
+	}
+}
+
+func TestImportStoryConvertsParagraphNodeMapByIndex(t *testing.T) {
+	setupEmptyStore(t)
+	router := newRouter()
+
+	importPayload := map[string]interface{}{
+		"story": map[string]interface{}{
+			"storyId":  "story-rychenberg",
+			"schoolId": "rychenberg",
+			"title":    "Rychenberg – Soziokratie unter Prüfstein",
+		},
+		"paragraphs": []map[string]interface{}{
+			{"index": 1, "bodyMd": "Para 1", "citations": []interface{}{}},
+			{"index": 2, "bodyMd": "Para 2", "citations": []interface{}{}},
+			{"index": 3, "bodyMd": "Para 3", "citations": []interface{}{}},
+		},
+		"paragraphNodeMapByIndex": map[string][]string{
+			"1": []string{"n1", "n2"},
+			"2": []string{"n3"},
+			"3": []string{"n4", "n5"},
+		},
+	}
+
+	body, err := json.Marshal(importPayload)
 	if err != nil {
-		t.Fatalf("second patch failed: %v", err)
+		t.Fatalf("marshal import payload: %v", err)
 	}
 
-	fullResp, _ = storySvc.HandleGetFullStory(ctx, events.APIGatewayProxyRequest{PathParameters: map[string]string{"storyId": storyID}})
-	if err := json.Unmarshal([]byte(fullResp.Body), &full); err != nil {
-		t.Fatalf("unmarshal full story: %v", err)
-	}
-	if len(full.Paragraphs) != 2 {
-		t.Fatalf("expected 2 paragraphs")
-	}
-	if full.Paragraphs[0].ParagraphID != other.ParagraphID || full.Paragraphs[1].ParagraphID != target.ParagraphID {
-		t.Fatalf("paragraph order incorrect: %+v", full.Paragraphs)
-	}
-	if full.Paragraphs[1].BodyMd != "Updated" {
-		t.Fatalf("body not updated: %+v", full.Paragraphs[1])
-	}
-}
+	req := httptest.NewRequest(http.MethodPost, "/api/stories/import", bytes.NewReader(body))
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
 
-func TestImportStory(t *testing.T) {
-	setupTestServices()
-	ctx := context.Background()
-	importJSON := `{
-  "story": { "storyId": "story-rychenberg", "schoolId": "rychenberg", "title": "Rychenberg – Soziokratie unter Prüfstein" },
-  "paragraphs": [
-    { "index": 1, "bodyMd": "Am Rychenberg ...", "citations": [{ "transcriptId":"rychenberg_clean", "minutes":[0,1] }] },
-    { "index": 2, "bodyMd": "Soziokratie ...", "citations": [{ "transcriptId":"rychenberg_clean", "minutes":[2,3,4] }] },
-    { "index": 3, "bodyMd": "Mit dem Wegfall ...", "citations": [] }
-  ],
-  "details": [
-    { "paragraphIndex": 2, "kind": "quote", "transcriptId": "rychenberg_clean", "startMinute": 2, "endMinute": 4, "text": "Quote" }
-  ]
-}`
-	resp, err := storySvc.HandleImportStory(ctx, events.APIGatewayProxyRequest{Body: importJSON})
-	if err != nil || resp.StatusCode != 200 {
-		t.Fatalf("import failed: %v status=%d", err, resp.StatusCode)
-	}
-	var result map[string]string
-	if err := json.Unmarshal([]byte(resp.Body), &result); err != nil {
-		t.Fatalf("unmarshal import response: %v", err)
-	}
-	if result["id"] != "story-rychenberg" {
-		t.Fatalf("unexpected story id: %v", result)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", resp.Code)
 	}
 
-	fullResp, _ := storySvc.HandleGetFullStory(ctx, events.APIGatewayProxyRequest{PathParameters: map[string]string{"storyId": "story-rychenberg"}})
-	if fullResp.StatusCode != 200 {
-		t.Fatalf("fetch imported story failed: status=%d", fullResp.StatusCode)
+	getReq := httptest.NewRequest(http.MethodGet, "/api/stories/story-rychenberg/full", nil)
+	getResp := httptest.NewRecorder()
+	router.ServeHTTP(getResp, getReq)
+
+	if getResp.Code != http.StatusOK {
+		t.Fatalf("expected status 200 from full story, got %d", getResp.Code)
 	}
-	var full storyapi.StoryFull
-	if err := json.Unmarshal([]byte(fullResp.Body), &full); err != nil {
-		t.Fatalf("unmarshal full story: %v", err)
+
+	var full storyFullResponse
+	if err := json.Unmarshal(getResp.Body.Bytes(), &full); err != nil {
+		t.Fatalf("unmarshal full response: %v", err)
 	}
+
 	if len(full.Paragraphs) != 3 {
-		t.Fatalf("expected 3 paragraphs")
+		t.Fatalf("expected 3 paragraphs, got %d", len(full.Paragraphs))
 	}
-	if len(full.DetailsByParagraph) != 1 {
-		t.Fatalf("expected 1 paragraph with details, got %d", len(full.DetailsByParagraph))
+	if len(full.ParagraphNodeMap) != 3 {
+		t.Fatalf("expected 3 paragraphNodeMap entries, got %d", len(full.ParagraphNodeMap))
 	}
-	found := false
-	for pid, details := range full.DetailsByParagraph {
-		if len(details) == 1 && details[0].ParagraphID == pid {
-			found = true
+
+	expected := map[int][]string{
+		1: []string{"n1", "n2"},
+		2: []string{"n3"},
+		3: []string{"n4", "n5"},
+	}
+	for _, para := range full.Paragraphs {
+		nodes, ok := full.ParagraphNodeMap[para.ParagraphID]
+		if !ok {
+			t.Fatalf("missing node map for paragraph %s", para.ParagraphID)
 		}
-	}
-	if !found {
-		t.Fatalf("detail mapping incorrect: %+v", full.DetailsByParagraph)
-	}
-}
-
-func TestListStories(t *testing.T) {
-	setupTestServices()
-	ctx := context.Background()
-
-	stories := []struct {
-		id    string
-		title string
-	}{
-		{"story-rychenberg", "Rychenberg"},
-		{"story-sonnhalde", "Sonnhalde"},
-	}
-
-	for _, s := range stories {
-		body := map[string]string{
-			"storyId":  s.id,
-			"schoolId": "school-" + s.id,
-			"title":    s.title,
+		want := expected[para.Index]
+		if len(nodes) != len(want) {
+			t.Fatalf("expected %d nodes for paragraph %d, got %d", len(want), para.Index, len(nodes))
 		}
-		payload, _ := json.Marshal(body)
-		resp, err := storySvc.HandleCreateStory(ctx, events.APIGatewayProxyRequest{Body: string(payload)})
-		if err != nil || resp.StatusCode != 200 {
-			t.Fatalf("create story failed for %s: %v status=%d", s.id, err, resp.StatusCode)
-		}
-	}
-
-	resp, err := storySvc.HandleListStories(ctx, events.APIGatewayProxyRequest{})
-	if err != nil || resp.StatusCode != 200 {
-		t.Fatalf("list stories failed: %v status=%d", err, resp.StatusCode)
-	}
-
-	var payload struct {
-		Stories []storyapi.Story `json:"stories"`
-	}
-	if err := json.Unmarshal([]byte(resp.Body), &payload); err != nil {
-		t.Fatalf("unmarshal list response: %v", err)
-	}
-	if len(payload.Stories) != len(stories) {
-		t.Fatalf("expected %d stories, got %d", len(stories), len(payload.Stories))
-	}
-	ids := make(map[string]bool)
-	for _, s := range payload.Stories {
-		ids[s.StoryID] = true
-	}
-	for _, expected := range stories {
-		if !ids[expected.id] {
-			t.Fatalf("missing story %s in response", expected.id)
+		for i := range nodes {
+			if nodes[i] != want[i] {
+				t.Fatalf("unexpected node mapping for paragraph %d: %v", para.Index, nodes)
+			}
 		}
 	}
 }
 
-func TestHandleStoryRoutesWithStagePrefix(t *testing.T) {
-	setupTestServices()
-	ctx := context.Background()
+func TestDeleteNodeRemovesGraphAndParagraphReferences(t *testing.T) {
+	setupFixtures(t)
+	router := newRouter()
 
-	createResp, err := storySvc.HandleCreateStory(ctx, events.APIGatewayProxyRequest{Body: `{"schoolId":"stage","title":"Stage Story"}`})
-	if err != nil || createResp.StatusCode != 200 {
-		t.Fatalf("failed to seed story: %v status=%d", err, createResp.StatusCode)
+	delReq := httptest.NewRequest(http.MethodDelete, "/struktur/story-rychenberg/n1", nil)
+	delResp := httptest.NewRecorder()
+	router.ServeHTTP(delResp, delReq)
+
+	if delResp.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", delResp.Code)
 	}
 
-	resp, err := handleStoryRoutes(ctx, events.APIGatewayProxyRequest{}, "GET", "/dev/api/stories")
+	getReq := httptest.NewRequest(http.MethodGet, "/struktur/story-rychenberg", nil)
+	getResp := httptest.NewRecorder()
+	router.ServeHTTP(getResp, getReq)
+
+	if getResp.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", getResp.Code)
+	}
+
+	var payload strukturResponse
+	if err := json.Unmarshal(getResp.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal struktur response: %v", err)
+	}
+
+	for _, node := range payload.Nodes {
+		if node.ID == "n1" {
+			t.Fatalf("expected node n1 to be deleted")
+		}
+	}
+	for _, edge := range payload.Edges {
+		if edge.From == "n1" || edge.To == "n1" {
+			t.Fatalf("edges referencing n1 should be removed: %+v", edge)
+		}
+	}
+	for pid, nodes := range payload.ParagraphNodeMap {
+		for _, id := range nodes {
+			if id == "n1" {
+				t.Fatalf("paragraph %s still references deleted node", pid)
+			}
+		}
+	}
+}
+
+func TestSubmitUpsertsNodePositions(t *testing.T) {
+	setupFixtures(t)
+	router := newRouter()
+
+	submitPayload := submitPayload{
+		PersonID: "story-rychenberg",
+		Nodes: []Node{
+			{ID: "n2", Label: "Soziokratie", X: 900, Y: 901},
+			{ID: "n8", Label: "Neuer Knoten", X: 400, Y: 401},
+		},
+		Edges: []Edge{{From: "n2", To: "n8", Label: "verbindet"}},
+	}
+	body, err := json.Marshal(submitPayload)
 	if err != nil {
-		t.Fatalf("handleStoryRoutes returned error: %v", err)
-	}
-	if resp.StatusCode != 200 {
-		t.Fatalf("unexpected status code: %d body=%s", resp.StatusCode, resp.Body)
+		t.Fatalf("marshal submit payload: %v", err)
 	}
 
-	var payload struct {
-		Stories []storyapi.Story `json:"stories"`
+	req := httptest.NewRequest(http.MethodPost, "/submit", bytes.NewReader(body))
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", resp.Code)
 	}
-	if err := json.Unmarshal([]byte(resp.Body), &payload); err != nil {
-		t.Fatalf("failed to parse response: %v", err)
+
+	getReq := httptest.NewRequest(http.MethodGet, "/struktur/story-rychenberg", nil)
+	getResp := httptest.NewRecorder()
+	router.ServeHTTP(getResp, getReq)
+
+	if getResp.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", getResp.Code)
 	}
-	if len(payload.Stories) == 0 {
-		t.Fatalf("expected at least one story in response")
+
+	var payload strukturResponse
+	if err := json.Unmarshal(getResp.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal struktur response: %v", err)
+	}
+
+	foundUpdated := false
+	foundNew := false
+	for _, node := range payload.Nodes {
+		switch node.ID {
+		case "n2":
+			if node.X != 900 || node.Y != 901 {
+				t.Fatalf("expected updated position for n2, got %+v", node)
+			}
+			foundUpdated = true
+		case "n8":
+			foundNew = true
+			if node.PersonID != "story-rychenberg" {
+				t.Fatalf("expected personId on new node, got %s", node.PersonID)
+			}
+		}
+	}
+	if !foundUpdated {
+		t.Fatalf("expected to find updated node n2")
+	}
+	if !foundNew {
+		t.Fatalf("expected to find new node n8")
+	}
+
+	foundEdge := false
+	for _, edge := range payload.Edges {
+		if edge.From == "n2" && edge.To == "n8" {
+			foundEdge = true
+			break
+		}
+	}
+	if !foundEdge {
+		t.Fatalf("expected to find upserted edge n2->n8")
 	}
 }
