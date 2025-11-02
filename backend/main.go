@@ -14,6 +14,12 @@ func main() {
 	}
 
 	router := newRouter()
+	if runningInLambda() {
+		log.Printf("strukturbild backend starting in Lambda runtime")
+		startLambda(router)
+		return
+	}
+
 	addr := serverAddress()
 	log.Printf("strukturbild backend listening on %s", addr)
 	if err := http.ListenAndServe(addr, router); err != nil {
