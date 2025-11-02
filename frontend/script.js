@@ -1,4 +1,4 @@
-const API_BASE_URL = window.STRUKTURBILD_API_URL || "http://localhost:3000";
+const API_BASE_URL = window.STRUKTURBILD_API_URL
 const IS_STORY_MODE = window.location.pathname.startsWith("/stories/");
 const STORY_ID = (window.location.pathname.match(/\/stories\/([^/]+)/) || [])[1] || "";
 

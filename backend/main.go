@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
-	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -14,7 +13,6 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -307,97 +305,13 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	}, nil
 }
 
-func handlerHTTP(w http.ResponseWriter, r *http.Request) {
-	for k, v := range corsHeaders() {
-		w.Header().Set(k, v)
-	}
-	if r.Method == http.MethodOptions {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-	var body map[string]interface{}
-	json.NewDecoder(r.Body).Decode(&body)
-	jsonBytes, _ := json.Marshal(body)
-
-	resp, _ := handler(context.Background(), events.APIGatewayProxyRequest{
-		HTTPMethod: "POST",
-		Path:       "/submit",
-		Body:       string(jsonBytes),
-	})
-	w.WriteHeader(resp.StatusCode)
-	w.Write([]byte(resp.Body))
-}
-
-func getHandlerHTTP(w http.ResponseWriter, r *http.Request) {
-	for k, v := range corsHeaders() {
-		w.Header().Set(k, v)
-	}
-	if r.Method == http.MethodOptions {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-	if r.Method == http.MethodDelete {
-		parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/struktur/"), "/")
-		if len(parts) == 2 {
-			resp, _ := deleteHandler(context.Background(), events.APIGatewayProxyRequest{
-				HTTPMethod:     "DELETE",
-				PathParameters: map[string]string{"personId": parts[0], "nodeId": parts[1]},
-			})
-			w.WriteHeader(resp.StatusCode)
-			w.Write([]byte(resp.Body))
-			return
-		}
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Invalid path for DELETE"))
-		return
-	}
-	id := strings.TrimPrefix(r.URL.Path, "/struktur/")
-	resp, _ := getHandler(context.Background(), events.APIGatewayProxyRequest{
-		HTTPMethod:     "GET",
-		Path:           "/struktur/" + id,
-		PathParameters: map[string]string{"id": id},
-	})
-	w.WriteHeader(resp.StatusCode)
-	w.Write([]byte(resp.Body))
-}
-
 func initializeDynamoDB(ctx context.Context) *dynamodb.Client {
-	var cfg aws.Config
-	var err error
-
-	if os.Getenv("LOCAL") == "true" {
-		cfg, err = config.LoadDefaultConfig(ctx,
-			config.WithRegion("us-east-1"),
-			config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
-				"fakeMyKeyId", "fakeSecretAccessKey", "fakeToken",
-			)),
-			config.WithEndpointResolver(aws.EndpointResolverFunc(
-				func(service, region string) (aws.Endpoint, error) {
-					if service == dynamodb.ServiceID {
-						return aws.Endpoint{
-							URL:           "http://localhost:8000",
-							SigningRegion: "us-east-1",
-						}, nil
-					}
-					return aws.Endpoint{}, &aws.EndpointNotFoundError{}
-				},
-			)),
-		)
-	} else {
-		cfg, err = config.LoadDefaultConfig(ctx)
-	}
+	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
 		log.Fatalf("Failed to load AWS config: %v", err)
 	}
 	log.Println("✅ DynamoDB client initialized.")
 	return dynamodb.NewFromConfig(cfg)
-}
-
-func runHTTPServer() {
-	log.Println("✅ Running HTTP server on :3000 (LOCAL)")
-	http.HandleFunc("/submit", handlerHTTP)
-	http.HandleFunc("/struktur/", getHandlerHTTP)
-	log.Fatal(http.ListenAndServe(":3000", nil))
 }
 
 func runLambda() {
@@ -535,9 +449,5 @@ func main() {
 	log.Printf("✅ Using DynamoDB table: %s", tableName)
 	storySvc = storyapi.NewStoryService(svc, tableName, corsHeaders)
 
-	if os.Getenv("LOCAL") == "true" {
-		runHTTPServer()
-	} else {
-		runLambda()
-	}
+	runLambda()
 }
