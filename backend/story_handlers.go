@@ -79,6 +79,8 @@ type importPayload struct {
 	Story            Story               `json:"story"`
 	Paragraphs       []importParagraph   `json:"paragraphs"`
 	ParagraphNodeMap map[string][]string `json:"paragraphNodeMap"`
+	// paragraphNodeMapByIndex allows callers to map paragraphs to nodes by index when ids are unstable.
+	ParagraphNodeMapByIndex map[string][]string `json:"paragraphNodeMapByIndex"`
 }
 
 type importParagraph struct {
@@ -659,7 +661,23 @@ func (s *inMemoryStore) importStory(payload importPayload) (Story, []Paragraph, 
 	// Use the explicit paragraphId -> []nodeId mapping only
 	nodeMap := make(map[string][]string)
 	for pid, nodes := range payload.ParagraphNodeMap {
-		nodeMap[pid] = append([]string(nil), nodes...)
+		cleanID := strings.TrimSpace(pid)
+		if cleanID == "" {
+			continue
+		}
+		nodeMap[cleanID] = append([]string(nil), nodes...)
+	}
+
+	// Allow mapping by paragraph index (string form) for clients without stable paragraphIds yet.
+	if len(payload.ParagraphNodeMapByIndex) > 0 {
+		for _, para := range paragraphs {
+			idxKey := strconv.Itoa(para.Index)
+			nodes, ok := payload.ParagraphNodeMapByIndex[idxKey]
+			if !ok {
+				continue
+			}
+			nodeMap[para.ParagraphID] = append([]string(nil), nodes...)
+		}
 	}
 
 	s.setStoryBundle(story, paragraphs, nodeMap)
