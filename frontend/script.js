@@ -1,6 +1,39 @@
-const API_BASE_URL = window.STRUKTURBILD_API_URL
-const IS_STORY_MODE = window.location.pathname.startsWith("/stories/");
-const STORY_ID = (window.location.pathname.match(/\/stories\/([^/]+)/) || [])[1] || "";
+const API_BASE_URL = window.STRUKTURBILD_API_URL;
+
+function decodeURIComponentSafe(value) {
+  if (typeof value !== "string" || value.length === 0) return "";
+  try {
+    return decodeURIComponent(value);
+  } catch (err) {
+    return value;
+  }
+}
+
+function extractStoryIdFromLocation(loc = window.location) {
+  if (!loc) return "";
+  const pathname = loc.pathname || "";
+  const pathMatch = pathname.match(/\/stories\/([^/]+)/);
+  if (pathMatch && pathMatch[1]) {
+    return decodeURIComponentSafe(pathMatch[1]);
+  }
+  try {
+    const params = new URLSearchParams(loc.search || "");
+    const queryStory = params.get("storyId") || params.get("storyID");
+    if (queryStory) return queryStory;
+  } catch (err) {
+    // Ignore environments without URLSearchParams support
+  }
+  if (loc.hash) {
+    const hashMatch = loc.hash.match(/story(?:Id)?=([^&]+)/i);
+    if (hashMatch && hashMatch[1]) {
+      return decodeURIComponentSafe(hashMatch[1]);
+    }
+  }
+  return "";
+}
+
+let STORY_ID = extractStoryIdFromLocation();
+let IS_STORY_MODE = !!STORY_ID;
 
 async function fetchAndRenderStory(storyId) {
   const root = document.getElementById('story-root');
@@ -53,22 +86,87 @@ async function fetchStoryList() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  if (IS_STORY_MODE) {
-    document.body.classList.add("story-mode");
-    const personInputEarly = document.getElementById("personIdInput");
-    if (personInputEarly && STORY_ID) personInputEarly.value = STORY_ID;
-    if (STORY_ID) fetchAndRenderStory(STORY_ID);
-  } else {
-    const storyRoot = document.getElementById('story-root');
-    if (storyRoot && !storyRoot.innerHTML) {
-      storyRoot.innerHTML = '<p style="color:#444">Wähle eine Story in der Liste, um sie zu öffnen.</p>';
-    }
-  }
-  // Support legacy + refreshed toolbar IDs
+  const storyRoot = document.getElementById('story-root');
+  const placeholderHtml = '<p style="color:#444">Wähle eine Story in der Liste, um sie zu öffnen.</p>';
+
   const loadBtn = document.getElementById("loadPersonBtn") || document.getElementById("loadBtn");
   const createBtn = document.getElementById("createPersonBtn") || document.getElementById("createBtn");
   const personInput = document.getElementById("personIdInput");
   const storySelect = document.getElementById("storySelect");
+  const filterTypeSelect = document.getElementById("filterTypeSelect");
+
+  const applyPlaceholder = () => {
+    if (storyRoot) {
+      storyRoot.innerHTML = placeholderHtml;
+    }
+  };
+
+  const ensureStoryRendered = (storyId, { skipUrlUpdate = false, forceReload = false } = {}) => {
+    if (!storyId) {
+      STORY_ID = "";
+      IS_STORY_MODE = false;
+      document.body.classList.remove("story-mode");
+      if (personInput) personInput.value = "";
+      if (storySelect) {
+        storySelect.value = "";
+      }
+      if (window.renderStoryPage) {
+        window.renderStoryPage("");
+      }
+      applyPlaceholder();
+      return;
+    }
+
+    if (!forceReload && STORY_ID === storyId && IS_STORY_MODE) {
+      return;
+    }
+
+    STORY_ID = storyId;
+    IS_STORY_MODE = true;
+
+    if (!skipUrlUpdate) {
+      const encoded = encodeURIComponent(storyId);
+      if (window.history && window.history.pushState) {
+        window.history.pushState({ storyId }, "", `/stories/${encoded}`);
+      } else {
+        const params = new URLSearchParams(window.location.search || "");
+        params.set("storyId", storyId);
+        const nextSearch = params.toString();
+        const pathOnly = window.location.pathname.split('?')[0];
+        window.location.assign(`${pathOnly}?${nextSearch}`);
+        return;
+      }
+    }
+
+    document.body.classList.add("story-mode");
+    if (personInput) personInput.value = storyId;
+    if (storySelect) {
+      storySelect.value = storyId;
+    }
+
+    if (window.renderStoryPage) {
+      window.renderStoryPage(storyId);
+    } else {
+      fetchAndRenderStory(storyId);
+    }
+
+    loadPersonData(storyId)
+      .then(() => {
+        currentFilter = 'schulentwicklungsziel';
+        expandedNodeId = null;
+        prevFilterBeforeExpand = null;
+        if (filterTypeSelect) filterTypeSelect.value = 'schulentwicklungsziel';
+        needsLayout = true;
+        reRender();
+      })
+      .catch(err => console.error('Auto story load failed', err));
+  };
+
+  if (STORY_ID) {
+    ensureStoryRendered(STORY_ID, { skipUrlUpdate: true, forceReload: true });
+  } else {
+    applyPlaceholder();
+  }
 
   // --- Dynamic layout tuning (adds a small slider into the UI) ---
   // Single "Spacing" slider controls COSE-like spacing when used, and spacing inside deterministic layouts.
@@ -220,7 +318,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const saveLayoutBtn = document.getElementById("saveLayoutBtn");
   const connectSelectedBtn = document.getElementById("connectSelectedBtn") || document.getElementById("connectBtn");
   let inspectorSelection = null; // cy element currently edited
-  const filterTypeSelect = document.getElementById("filterTypeSelect");
   const clearExpandBtn = document.getElementById("clearExpandBtn"); // optional
 
   // Ensure "Compass" layout exists in the dropdown
@@ -1053,8 +1150,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     storySelect.addEventListener('change', (event) => {
       const selected = event.target.value;
-      if (!selected) return;
-      window.location.href = `/stories/${encodeURIComponent(selected)}`;
+      if (!selected) {
+        ensureStoryRendered("", { forceReload: true });
+        return;
+      }
+      ensureStoryRendered(selected, { forceReload: true });
     });
   }
 
@@ -1078,19 +1178,17 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  if (IS_STORY_MODE && STORY_ID) {
-    if (personInput && (!personInput.value || personInput.value !== STORY_ID)) {
-      personInput.value = STORY_ID;
-    }
-    loadPersonData(STORY_ID)
-      .then(() => {
-        currentFilter = 'schulentwicklungsziel';
-        expandedNodeId = null;
-        prevFilterBeforeExpand = null;
-        if (filterTypeSelect) filterTypeSelect.value = 'schulentwicklungsziel';
-        needsLayout = true;
-        reRender();
-      })
-      .catch(err => console.error('Auto story load failed', err));
+  if (STORY_ID && personInput && (!personInput.value || personInput.value !== STORY_ID)) {
+    personInput.value = STORY_ID;
   }
+
+  window.addEventListener('popstate', () => {
+    const nextId = extractStoryIdFromLocation();
+    if (nextId) {
+      ensureStoryRendered(nextId, { skipUrlUpdate: true, forceReload: true });
+    } else {
+      ensureStoryRendered("", { skipUrlUpdate: true, forceReload: true });
+      applyPlaceholder();
+    }
+  });
 });
