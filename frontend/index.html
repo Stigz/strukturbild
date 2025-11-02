@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <base href="/">
   <title>Strukturbild Editor</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://unpkg.com/cytoscape-context-menus/cytoscape-context-menus.css" />
@@ -94,6 +95,32 @@
       .split-right { border-top: none; }
     }
   </style>
+  <script>
+    (function ensureStoryQueryParam() {
+      try {
+        var loc = window.location || {};
+        var path = loc.pathname || "";
+        var match = path.match(/\/stories\/([^/]+)/);
+        if (!match || !match[1]) return;
+        var storyFromPath = decodeURIComponent(match[1]);
+        var basePath = path.replace(/\/stories\/[^/]*$/, "/");
+        if (!basePath.endsWith("/")) basePath += "/";
+        var params = new URLSearchParams(loc.search || "");
+        if (params.get("storyId") === storyFromPath) {
+          if (path !== basePath) {
+            var normalized = `${basePath}${loc.search || ""}${loc.hash || ""}`;
+            window.history.replaceState({ storyId: storyFromPath }, "", normalized);
+          }
+          return;
+        }
+        params.set("storyId", storyFromPath);
+        var nextUrl = `${basePath}?${params.toString()}${loc.hash || ""}`;
+        window.history.replaceState({ storyId: storyFromPath }, "", nextUrl);
+      } catch (err) {
+        // Ignore environments without URLSearchParams/history support
+      }
+    })();
+  </script>
 </head>
 <body>
 

@@ -32,6 +32,28 @@ function extractStoryIdFromLocation(loc = window.location) {
   return "";
 }
 
+function getBasePath() {
+  if (typeof window === "undefined" || !window.location) return "/";
+  const { location } = window;
+  const fallbackPath = (location.pathname || "/").replace(/\/stories\/[^/]*$/, "/");
+  try {
+    const url = new URL(location.href);
+    url.search = "";
+    url.hash = "";
+    url.pathname = url.pathname.replace(/\/stories\/[^/]*$/, "/");
+    url.pathname = url.pathname.replace(/\/[^/]*\.html?$/i, "/");
+    let path = url.pathname || "/";
+    if (!path.endsWith("/")) path += "/";
+    if (!path.startsWith("/")) path = `/${path}`;
+    return path === "//" ? "/" : path;
+  } catch (err) {
+    let path = fallbackPath.replace(/\/[^/]*\.html?$/i, "/");
+    if (!path.endsWith("/")) path += "/";
+    if (!path.startsWith("/")) path = `/${path}`;
+    return path === "//" ? "/" : path;
+  }
+}
+
 let STORY_ID = extractStoryIdFromLocation();
 let IS_STORY_MODE = !!STORY_ID;
 
@@ -110,6 +132,17 @@ document.addEventListener("DOMContentLoaded", () => {
       if (storySelect) {
         storySelect.value = "";
       }
+      currentFilter = 'schulentwicklungsziel';
+      if (filterTypeSelect) filterTypeSelect.value = 'schulentwicklungsziel';
+      if (!skipUrlUpdate) {
+        const basePath = getBasePath();
+        if (window.history && window.history.pushState) {
+          window.history.pushState({}, "", basePath);
+        } else {
+          window.location.assign(basePath);
+          return;
+        }
+      }
       if (window.renderStoryPage) {
         window.renderStoryPage("");
       }
@@ -126,14 +159,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (!skipUrlUpdate) {
       const encoded = encodeURIComponent(storyId);
+      const basePath = getBasePath();
       if (window.history && window.history.pushState) {
-        window.history.pushState({ storyId }, "", `/stories/${encoded}`);
+        const nextUrl = `${basePath}?storyId=${encoded}`;
+        window.history.pushState({ storyId }, "", nextUrl);
       } else {
         const params = new URLSearchParams(window.location.search || "");
         params.set("storyId", storyId);
-        const nextSearch = params.toString();
-        const pathOnly = window.location.pathname.split('?')[0];
-        window.location.assign(`${pathOnly}?${nextSearch}`);
+        window.location.assign(`${basePath}?${params.toString()}`);
         return;
       }
     }
@@ -150,12 +183,13 @@ document.addEventListener("DOMContentLoaded", () => {
       fetchAndRenderStory(storyId);
     }
 
+    currentFilter = 'all';
+    if (filterTypeSelect) filterTypeSelect.value = 'all';
+    expandedNodeId = null;
+    prevFilterBeforeExpand = null;
+
     loadPersonData(storyId)
       .then(() => {
-        currentFilter = 'schulentwicklungsziel';
-        expandedNodeId = null;
-        prevFilterBeforeExpand = null;
-        if (filterTypeSelect) filterTypeSelect.value = 'schulentwicklungsziel';
         needsLayout = true;
         reRender();
       })
@@ -246,7 +280,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // In-memory dataset + UI state
   let lastNodes = [];
   let lastEdges = [];
-  let currentFilter = 'schulentwicklungsziel'; // default to Schulentwicklungsziele on load
+  let currentFilter = STORY_ID ? 'all' : 'schulentwicklungsziel'; // default depends on mode
   let prevFilterBeforeExpand = null;           // remember filter while expanded
   let expandedNodeId = null;                   // node id if expanded (focus)
 
