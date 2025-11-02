@@ -1,4 +1,4 @@
-import StoryPage from "./StoryPage.jsx";
+import StoryPage from "/story/StoryPage.jsx";
 
 const React = window.React;
 const ReactDOM = window.ReactDOM;
