@@ -18,7 +18,7 @@ all: build zip deploy frontend
 
 build:
 	@echo "🔧 Building Go binary for Lambda..."
-	cd backend && GOOS=linux GOARCH=amd64 go build -o $(GO_BINARY) main.go
+	cd backend && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o $(GO_BINARY) .
 
 zip: build
 	@echo "📦 Zipping binary..."
@@ -52,6 +52,14 @@ url-prod:
 	@echo "🌍 Your PROD API endpoint:"
 	$(call TF_SELECT_WORKSPACE,prod)
 	cd terraform && terraform output api_url
+
+logs-dev:
+	@$(call TF_SELECT_WORKSPACE,dev)
+	@aws logs tail /aws/lambda/$(LAMBDA_NAME)-dev --since 15m --follow
+
+logs-prod:
+	@$(call TF_SELECT_WORKSPACE,prod)
+	@aws logs tail /aws/lambda/$(LAMBDA_NAME)-prod --since 15m --follow
 
 test:
 	$(call TF_SELECT_WORKSPACE,prod)
@@ -199,10 +207,21 @@ validate-refs:
 	  echo "Usage: make validate-refs FILE=<file.json>"; exit 1; \
 	fi
 	@echo "🔗 Checking edge references in $(FILE) ..."
-	@jq -e '(.nodes // [] | map(.id)) as $ids | ((.edges // []) | map(select(($ids | index(.from))!=null and ($ids | index(.to))!=null)) | length) == ((.edges // []) | length)' "$(FILE)" >/dev/null \
-	  || { echo "❌ Some edges reference missing node ids"; \
-	       echo "Offenders:"; \
-	       jq -r '(.nodes // [] | map(.id)) as $ids | (.edges // []) | map(select(($ids | index(.from))==null or ($ids | index(.to))==null))' "$(FILE)"; exit 1; }
+	@TMP_JQ=$$(mktemp); \
+	cat > $$TMP_JQ <<'JQ'; \
+	(.nodes // [] | map(.id) | unique) as $ids
+	| ((.edges // []) | all(
+	    (type=="object")
+	    and (.from|type=="string") and (.to|type=="string")
+	    and ($ids | index(.from) != null)
+	    and ($ids | index(.to) != null)
+	  ))
+	JQ
+	@jq -e -f $$TMP_JQ "$(FILE)" >/dev/null || { \
+	  echo "❌ Some edges reference missing node ids"; \
+	  jq -r '(.nodes // [] | map(.id) | unique) as $$ids | (.edges // []) | map(select(($$ids | index(.from))==null or ($$ids | index(.to))==null))' "$(FILE)"; \
+	  rm -f $$TMP_JQ; exit 1; }
+	@rm -f $$TMP_JQ
 	@echo "✅ All edges reference existing node ids"
 
 
@@ -240,5 +259,69 @@ fix-types-dir:
 	done
 	@echo "✅ All JSON files in $(DIR) migrated"
 # --- Convenience aliases for frontend deploy ---
-deploy-frontend-dev: frontend-dev
-deploy-frontend-prod: frontend-prod
+# --- Data ops (wipe & import via API) ----------------------------------------
+# These helpers let you wipe a person's graph and re-import both STORY and GRAPH
+# JSON through the existing HTTP API (no direct DynamoDB access required).
+
+help-data:
+	@echo "make wipe-graph PERSON=<id>                      # Delete ALL nodes for <id> via API"
+	@echo "make import-story FILE=<story.json>              # POST story+paragraphs+paraNodeMap to /api/stories/import"
+	@echo "make import-graph PERSON=<id> FILE=<graph.json>  # POST nodes+edges to /submit (wrapper of 'make import')"
+	@echo "make reset-person PERSON=<id> STORY_FILE=<story.json> GRAPH_FILE=<graph.json>"
+	@echo "                                               # wipe graph, then import story and graph"
+
+# Delete all nodes for a personId using the existing DELETE /struktur/<person>/<node> endpoint.
+# (Edges connected to a node are expected to be removed server-side by your handler.)
+wipe-graph:
+	@if [ -z "$(PERSON)" ]; then \
+	  echo "Usage: make wipe-graph PERSON=<id> [FILE=<graph.json>]"; exit 1; \
+	fi
+	@API_URL="$$(cd terraform && terraform output -raw api_url)"; \
+	echo "🧨 Wiping graph for PERSON=$(PERSON) at $$API_URL ..."; \
+	if [ -n "$(FILE)" ] && [ -f "$(FILE)" ]; then \
+	  ids="$$(jq -r '(.nodes // []) | map(.id) | .[]' "$(FILE)")"; \
+	else \
+	  ids="$$(curl -s "$$API_URL/struktur/$(PERSON)" | jq -r '.nodes[]?.id')"; \
+	fi; \
+	if [ -z "$$ids" ]; then \
+	  echo "  (no nodes to delete)"; \
+	else \
+	  for id in $$ids; do \
+	    echo "  - DELETE /struktur/$(PERSON)/$$id"; \
+	    curl -s -X DELETE "$$API_URL/struktur/$(PERSON)/$$id" >/dev/null; \
+	  done; \
+	fi; \
+	echo "✅ Done wipe-graph for $(PERSON)"
+
+# Import STORY (metadata + paragraphs + paragraphNodeMap) in the new MVP shape.
+# Expects FILE to be your import JSON (e.g., testfiles/import_rychenberg.json).
+import-story:
+	@if [ -z "$(FILE)" ]; then \
+	  echo "Usage: make import-story FILE=<story.json>"; exit 1; \
+	fi
+	@echo "📚 Importing STORY from $(FILE) -> $(API_URL)/api/stories/import"
+	@curl -sS -X POST "$(API_URL)/api/stories/import" \
+	  -H 'Content-Type: application/json' \
+	  --data-binary @$(FILE) | sed -e 's/^/  /'
+	@echo "✅ Story import complete."
+
+# Import GRAPH for a personId (wrapper around existing 'import' target).
+# Validates refs first to catch missing node ids in edges.
+import-graph:
+	@if [ -z "$(PERSON)" ] || [ -z "$(FILE)" ]; then \
+	  echo "Usage: make import-graph PERSON=<id> FILE=<graph.json>"; exit 1; \
+	fi
+	@$(MAKE) --no-print-directory validate-refs FILE=$(FILE)
+	@echo "🗺️  Importing GRAPH from $(FILE) for PERSON=$(PERSON)"
+	@$(MAKE) --no-print-directory import PERSON=$(PERSON) FILE=$(FILE)
+	@echo "✅ Graph import complete."
+
+# One-stop reset for a given person: wipe graph, import story, then import graph.
+reset-person:
+	@if [ -z "$(PERSON)" ] || [ -z "$(STORY_FILE)" ] || [ -z "$(GRAPH_FILE)" ]; then \
+	  echo "Usage: make reset-person PERSON=<id> STORY_FILE=<story.json> GRAPH_FILE=<graph.json>"; exit 1; \
+	fi
+	@$(MAKE) --no-print-directory wipe-graph PERSON=$(PERSON)
+	@$(MAKE) --no-print-directory import-story FILE=$(STORY_FILE)
+	@$(MAKE) --no-print-directory import-graph PERSON=$(PERSON) FILE=$(GRAPH_FILE)
+	@echo "✨ Finished reset-person for $(PERSON)"

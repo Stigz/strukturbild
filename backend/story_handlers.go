@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -13,6 +15,12 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"context"
+
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -68,12 +76,9 @@ type Edge struct {
 }
 
 type importPayload struct {
-	Story                 Story               `json:"story"`
-	Paragraphs            []importParagraph   `json:"paragraphs"`
-	ParagraphNodeMap      map[string][]string `json:"paragraphNodeMap"`
-	ParagraphNodeMapIndex map[string][]string `json:"paragraphNodeMapByIndex"`
-	Nodes                 []Node              `json:"nodes"`
-	Edges                 []Edge              `json:"edges"`
+	Story            Story               `json:"story"`
+	Paragraphs       []importParagraph   `json:"paragraphs"`
+	ParagraphNodeMap map[string][]string `json:"paragraphNodeMap"`
 }
 
 type importParagraph struct {
@@ -119,21 +124,58 @@ var (
 	loadFixturesFunc = loadDefaultFixtures
 )
 
+var (
+	ddbClient   *dynamodb.Client
+	ddbInitOnce sync.Once
+
+	storiesTable = os.Getenv("DDB_STORIES_TABLE")
+	graphsTable  = os.Getenv("DDB_GRAPHS_TABLE")
+)
+
+func ddbEnabled() bool { return storiesTable != "" || graphsTable != "" }
+
+func getDDB(ctx context.Context) (*dynamodb.Client, error) {
+	var initErr error
+	ddbInitOnce.Do(func() {
+		cfg, err := config.LoadDefaultConfig(ctx)
+		if err != nil {
+			initErr = err
+			return
+		}
+		ddbClient = dynamodb.NewFromConfig(cfg)
+	})
+	return ddbClient, initErr
+}
+
 func ensureLoaded() error {
 	if loadFixturesFunc == nil {
 		return nil
 	}
 	fixtureOnce.Do(func() {
-		fixtureErr = loadFixturesFunc()
+		err := loadFixturesFunc()
+		// In Lambda/prod the test fixtures won't be packaged.
+		// Treat missing-fixture errors as non-fatal so endpoints still work.
+		if isFixtureMissing(err) {
+			err = nil
+		}
+		fixtureErr = err
 	})
 	return fixtureErr
 }
 
+// isFixtureMissing reports whether the error came from trying to open a local dev fixture.
+func isFixtureMissing(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "fixture") && strings.Contains(err.Error(), "not found")
+}
+
 func loadDefaultFixtures() error {
-	if err := loadFixtureStory("import_rychenberg.json"); err != nil {
+	if err := loadFixtureStory("import_rychenberg.json"); err != nil && !isFixtureMissing(err) {
 		return err
 	}
-	if err := loadFixtureGraph("graph_rychenberg.json"); err != nil {
+	if err := loadFixtureGraph("graph_rychenberg.json"); err != nil && !isFixtureMissing(err) {
 		return err
 	}
 	return nil
@@ -307,6 +349,267 @@ func removeNodeID(nodeIDs []string, target string) []string {
 	return filtered
 }
 
+// ===== DynamoDB helpers (optional persistence) =====
+// Item shape in DDB (storiesTable):
+//   PK: storyId (S)
+//   schoolId, title, createdAt, updatedAt (S)
+//   paragraphs: L of M
+//   paragraphNodeMap: M (pid -> L of S)
+
+func ddbPutStoryBundle(ctx context.Context, st Story, paras []Paragraph, nodeMap map[string][]string) error {
+	if storiesTable == "" {
+		return nil
+	}
+	cli, err := getDDB(ctx)
+	if err != nil {
+		return err
+	}
+	item := map[string]types.AttributeValue{
+		"storyId":   &types.AttributeValueMemberS{Value: st.StoryID},
+		"schoolId":  &types.AttributeValueMemberS{Value: st.SchoolID},
+		"title":     &types.AttributeValueMemberS{Value: st.Title},
+		"createdAt": &types.AttributeValueMemberS{Value: st.CreatedAt},
+		"updatedAt": &types.AttributeValueMemberS{Value: st.UpdatedAt},
+	}
+	// paragraphs
+	pList := make([]types.AttributeValue, 0, len(paras))
+	for _, p := range paras {
+		cits := make([]types.AttributeValue, 0, len(p.Citations))
+		for _, c := range p.Citations {
+			mins := make([]types.AttributeValue, 0, len(c.Minutes))
+			for _, m := range c.Minutes {
+				mins = append(mins, &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", m)})
+			}
+			cits = append(cits, &types.AttributeValueMemberM{Value: map[string]types.AttributeValue{
+				"transcriptId": &types.AttributeValueMemberS{Value: c.TranscriptID},
+				"minutes":      &types.AttributeValueMemberL{Value: mins},
+			}})
+		}
+		pMap := map[string]types.AttributeValue{
+			"paragraphId": &types.AttributeValueMemberS{Value: p.ParagraphID},
+			"storyId":     &types.AttributeValueMemberS{Value: st.StoryID},
+			"index":       &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", p.Index)},
+			"title":       &types.AttributeValueMemberS{Value: p.Title},
+			"bodyMd":      &types.AttributeValueMemberS{Value: p.BodyMd},
+			"citations":   &types.AttributeValueMemberL{Value: cits},
+			"createdAt":   &types.AttributeValueMemberS{Value: p.CreatedAt},
+			"updatedAt":   &types.AttributeValueMemberS{Value: p.UpdatedAt},
+		}
+		pList = append(pList, &types.AttributeValueMemberM{Value: pMap})
+	}
+	item["paragraphs"] = &types.AttributeValueMemberL{Value: pList}
+
+	// paragraphNodeMap
+	m := map[string]types.AttributeValue{}
+	for pid, ids := range nodeMap {
+		lst := make([]types.AttributeValue, 0, len(ids))
+		for _, id := range ids {
+			lst = append(lst, &types.AttributeValueMemberS{Value: id})
+		}
+		m[pid] = &types.AttributeValueMemberL{Value: lst}
+	}
+	item["paragraphNodeMap"] = &types.AttributeValueMemberM{Value: m}
+
+	_, err = cli.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName: &storiesTable,
+		Item:      item,
+	})
+	return err
+}
+
+func ddbGetStoryBundle(ctx context.Context, storyID string) (Story, []Paragraph, map[string][]string, bool, error) {
+	if storiesTable == "" {
+		return Story{}, nil, nil, false, nil
+	}
+	cli, err := getDDB(ctx)
+	if err != nil {
+		return Story{}, nil, nil, false, err
+	}
+	out, err := cli.GetItem(ctx, &dynamodb.GetItemInput{
+		TableName: &storiesTable,
+		Key: map[string]types.AttributeValue{
+			"storyId": &types.AttributeValueMemberS{Value: storyID},
+		},
+	})
+	if err != nil {
+		return Story{}, nil, nil, false, err
+	}
+	if out.Item == nil {
+		return Story{}, nil, nil, false, nil
+	}
+	st := Story{
+		StoryID:   storyID,
+		SchoolID:  getS(out.Item["schoolId"]),
+		Title:     getS(out.Item["title"]),
+		CreatedAt: getS(out.Item["createdAt"]),
+		UpdatedAt: getS(out.Item["updatedAt"]),
+	}
+	paras := []Paragraph{}
+	if lv, ok := out.Item["paragraphs"].(*types.AttributeValueMemberL); ok {
+		for _, av := range lv.Value {
+			if mm, ok := av.(*types.AttributeValueMemberM); ok {
+				p := Paragraph{
+					ParagraphID: getS(mm.Value["paragraphId"]),
+					StoryID:     storyID,
+					Index:       atoi(getN(mm.Value["index"])),
+					Title:       getS(mm.Value["title"]),
+					BodyMd:      getS(mm.Value["bodyMd"]),
+					CreatedAt:   getS(mm.Value["createdAt"]),
+					UpdatedAt:   getS(mm.Value["updatedAt"]),
+				}
+				// citations
+				if cl, ok := mm.Value["citations"].(*types.AttributeValueMemberL); ok {
+					for _, cav := range cl.Value {
+						if cm, ok := cav.(*types.AttributeValueMemberM); ok {
+							c := Citation{
+								TranscriptID: getS(cm.Value["transcriptId"]),
+							}
+							if ml, ok := cm.Value["minutes"].(*types.AttributeValueMemberL); ok {
+								for _, mv := range ml.Value {
+									c.Minutes = append(c.Minutes, atoi(getN(mv)))
+								}
+							}
+							p.Citations = append(p.Citations, c)
+						}
+					}
+				}
+				paras = append(paras, p)
+			}
+		}
+	}
+	// paragraphNodeMap
+	nodeMap := map[string][]string{}
+	if mm, ok := out.Item["paragraphNodeMap"].(*types.AttributeValueMemberM); ok {
+		for pid, av := range mm.Value {
+			if lv, ok := av.(*types.AttributeValueMemberL); ok {
+				for _, v := range lv.Value {
+					nodeMap[pid] = append(nodeMap[pid], getS(v))
+				}
+			}
+		}
+	}
+	sort.Slice(paras, func(i, j int) bool { return paras[i].Index < paras[j].Index })
+	return st, paras, nodeMap, true, nil
+}
+
+// Graphs as a single item per person (nodes + edges arrays)
+func ddbPutGraph(ctx context.Context, personID string, nodes []Node, edges []Edge) error {
+	if graphsTable == "" {
+		return nil
+	}
+	cli, err := getDDB(ctx)
+	if err != nil {
+		return err
+	}
+	nList := make([]types.AttributeValue, 0, len(nodes))
+	for _, n := range nodes {
+		nList = append(nList, &types.AttributeValueMemberM{Value: map[string]types.AttributeValue{
+			"id":       &types.AttributeValueMemberS{Value: n.ID},
+			"label":    &types.AttributeValueMemberS{Value: n.Label},
+			"detail":   &types.AttributeValueMemberS{Value: n.Detail},
+			"type":     &types.AttributeValueMemberS{Value: n.Type},
+			"time":     &types.AttributeValueMemberS{Value: n.Time},
+			"color":    &types.AttributeValueMemberS{Value: n.Color},
+			"x":        &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", n.X)},
+			"y":        &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", n.Y)},
+			"personId": &types.AttributeValueMemberS{Value: personID},
+		}})
+	}
+	eList := make([]types.AttributeValue, 0, len(edges))
+	for _, e := range edges {
+		eList = append(eList, &types.AttributeValueMemberM{Value: map[string]types.AttributeValue{
+			"from":   &types.AttributeValueMemberS{Value: e.From},
+			"to":     &types.AttributeValueMemberS{Value: e.To},
+			"label":  &types.AttributeValueMemberS{Value: e.Label},
+			"detail": &types.AttributeValueMemberS{Value: e.Detail},
+			"type":   &types.AttributeValueMemberS{Value: e.Type},
+		}})
+	}
+	item := map[string]types.AttributeValue{
+		"personId": &types.AttributeValueMemberS{Value: personID},
+		"nodes":    &types.AttributeValueMemberL{Value: nList},
+		"edges":    &types.AttributeValueMemberL{Value: eList},
+	}
+	_, err = cli.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName: &graphsTable,
+		Item:      item,
+	})
+	return err
+}
+
+func ddbGetGraph(ctx context.Context, personID string) ([]Node, []Edge, bool, error) {
+	if graphsTable == "" {
+		return nil, nil, false, nil
+	}
+	cli, err := getDDB(ctx)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	out, err := cli.GetItem(ctx, &dynamodb.GetItemInput{
+		TableName: &graphsTable,
+		Key: map[string]types.AttributeValue{
+			"personId": &types.AttributeValueMemberS{Value: personID},
+		},
+	})
+	if err != nil {
+		return nil, nil, false, err
+	}
+	if out.Item == nil {
+		return nil, nil, false, nil
+	}
+	var nodes []Node
+	if lv, ok := out.Item["nodes"].(*types.AttributeValueMemberL); ok {
+		for _, av := range lv.Value {
+			if mm, ok := av.(*types.AttributeValueMemberM); ok {
+				nodes = append(nodes, Node{
+					ID:       getS(mm.Value["id"]),
+					Label:    getS(mm.Value["label"]),
+					Detail:   getS(mm.Value["detail"]),
+					Type:     getS(mm.Value["type"]),
+					Time:     getS(mm.Value["time"]),
+					Color:    getS(mm.Value["color"]),
+					X:        atoi(getN(mm.Value["x"])),
+					Y:        atoi(getN(mm.Value["y"])),
+					PersonID: personID,
+				})
+			}
+		}
+	}
+	var edges []Edge
+	if lv, ok := out.Item["edges"].(*types.AttributeValueMemberL); ok {
+		for _, av := range lv.Value {
+			if mm, ok := av.(*types.AttributeValueMemberM); ok {
+				edges = append(edges, Edge{
+					From:   getS(mm.Value["from"]),
+					To:     getS(mm.Value["to"]),
+					Label:  getS(mm.Value["label"]),
+					Detail: getS(mm.Value["detail"]),
+					Type:   getS(mm.Value["type"]),
+				})
+			}
+		}
+	}
+	return nodes, edges, true, nil
+}
+
+// Utility getters from AttributeValue
+func getS(av types.AttributeValue) string {
+	if v, ok := av.(*types.AttributeValueMemberS); ok {
+		return v.Value
+	}
+	return ""
+}
+func getN(av types.AttributeValue) string {
+	if v, ok := av.(*types.AttributeValueMemberN); ok {
+		return v.Value
+	}
+	return "0"
+}
+func atoi(s string) int {
+	i, _ := strconv.Atoi(s)
+	return i
+}
+
 func (s *inMemoryStore) importStory(payload importPayload) (Story, []Paragraph, map[string][]string, error) {
 	if strings.TrimSpace(payload.Story.Title) == "" || strings.TrimSpace(payload.Story.SchoolID) == "" {
 		return Story{}, nil, nil, errors.New("story title and schoolId are required")
@@ -329,7 +632,6 @@ func (s *inMemoryStore) importStory(payload importPayload) (Story, []Paragraph, 
 	}
 
 	paragraphs := make([]Paragraph, 0, len(payload.Paragraphs))
-	indexToID := make(map[int]string)
 	for _, para := range payload.Paragraphs {
 		if para.Index < 1 {
 			return Story{}, nil, nil, fmt.Errorf("paragraph index must be >= 1, got %d", para.Index)
@@ -349,39 +651,18 @@ func (s *inMemoryStore) importStory(payload importPayload) (Story, []Paragraph, 
 			UpdatedAt:   now,
 		}
 		paragraphs = append(paragraphs, paragraph)
-		indexToID[para.Index] = paraID
 	}
 	sort.Slice(paragraphs, func(i, j int) bool {
 		return paragraphs[i].Index < paragraphs[j].Index
 	})
 
+	// Use the explicit paragraphId -> []nodeId mapping only
 	nodeMap := make(map[string][]string)
 	for pid, nodes := range payload.ParagraphNodeMap {
 		nodeMap[pid] = append([]string(nil), nodes...)
 	}
-	for indexStr, nodes := range payload.ParagraphNodeMapIndex {
-		idx, err := strconv.Atoi(indexStr)
-		if err != nil {
-			return Story{}, nil, nil, fmt.Errorf("invalid paragraph index %q", indexStr)
-		}
-		paraID, ok := indexToID[idx]
-		if !ok {
-			return Story{}, nil, nil, fmt.Errorf("paragraph index %d has no matching paragraph", idx)
-		}
-		nodeMap[paraID] = append([]string(nil), nodes...)
-	}
 
-	for i := range payload.Nodes {
-		if strings.TrimSpace(payload.Nodes[i].ID) == "" {
-			payload.Nodes[i].ID = uuid.New().String()
-		}
-		payload.Nodes[i].PersonID = storyID
-	}
-
-	dataStore.setStoryBundle(story, paragraphs, nodeMap)
-	if len(payload.Nodes) > 0 || len(payload.Edges) > 0 {
-		dataStore.setGraph(storyID, payload.Nodes, payload.Edges)
-	}
+	s.setStoryBundle(story, paragraphs, nodeMap)
 	return story, paragraphs, nodeMap, nil
 }
 
@@ -443,6 +724,17 @@ func writeJSON(w http.ResponseWriter, status int, payload interface{}) {
 	_ = json.NewEncoder(w).Encode(payload)
 }
 
+// Echo is a minimal POST endpoint for debugging API Gateway/Lambda wiring.
+// It logs the raw body and echoes it back as application/json.
+func Echo(w http.ResponseWriter, r *http.Request) {
+	b, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	_ = r.Body.Close()
+	log.Printf("Echo: received %d bytes", len(b))
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(b)
+}
+
 // ListStories responds with the list of stories available in the store.
 func ListStories(w http.ResponseWriter, r *http.Request) {
 	if err := ensureLoaded(); err != nil {
@@ -471,6 +763,13 @@ func GetStoryFull(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	story, paragraphs, nodeMap, ok := dataStore.getStoryFull(storyID)
+	if !ok && storiesTable != "" {
+		if st, paras, nmap, found, derr := ddbGetStoryBundle(r.Context(), storyID); derr == nil && found {
+			// cache in memory
+			dataStore.setStoryBundle(st, paras, nmap)
+			story, paragraphs, nodeMap, ok = dataStore.getStoryFull(storyID)
+		}
+	}
 	if !ok {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "story not found"})
 		return
@@ -485,23 +784,52 @@ func GetStoryFull(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// ImportStory ingests a story bundle into the in-memory store.
+// ImportStory ingests a story bundle into the in-memory store (MVP).
+// It also logs the raw request body for easier debugging of 4xx/5xx issues.
 func ImportStory(w http.ResponseWriter, r *http.Request) {
 	if err := ensureLoaded(); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	var payload importPayload
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
-		return
-	}
-	story, _, _, err := dataStore.importStory(payload)
+
+	// Read and log the raw body (bounded) to help diagnose import problems.
+	raw, err := io.ReadAll(io.LimitReader(r.Body, 1<<20)) // 1 MB guard
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		log.Printf("ImportStory: read body error: %v", err)
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "failed to read request body"})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"id": story.StoryID})
+	_ = r.Body.Close()
+	log.Printf("ImportStory: raw body: %s", string(raw))
+
+	var payload importPayload
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	// We intentionally do NOT DisallowUnknownFields so extra keys like detailsByParagraph are ignored.
+	if err := dec.Decode(&payload); err != nil {
+		log.Printf("ImportStory: json decode error: %v", err)
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON: " + err.Error()})
+		return
+	}
+
+	story, _, _, err := dataStore.importStory(payload)
+	// Optional persistence
+	if storiesTable != "" {
+		if derr := ddbPutStoryBundle(r.Context(), story, dataStore.paragraphs[story.StoryID], dataStore.paragraphNodes[story.StoryID]); derr != nil {
+			log.Printf("ImportStory: ddbPutStoryBundle error: %v", derr)
+		}
+	}
+	if err != nil {
+		log.Printf("ImportStory: validation/store error: %v", err)
+		// Treat bad input as 422 Unprocessable Entity for clarity
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":      true,
+		"id":      story.StoryID,
+		"message": "story imported (in-memory)",
+	})
 }
 
 type strukturResponse struct {
@@ -531,6 +859,12 @@ func GetStrukturByPerson(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	nodes, edges := dataStore.getGraph(personID)
+	if len(nodes) == 0 && graphsTable != "" {
+		if ns, es, found, derr := ddbGetGraph(r.Context(), personID); derr == nil && found {
+			dataStore.setGraph(personID, ns, es)
+			nodes, edges = dataStore.getGraph(personID)
+		}
+	}
 	if paragraphs == nil {
 		paragraphs = []Paragraph{}
 	}
@@ -572,6 +906,12 @@ func SubmitHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	dataStore.upsertGraph(payload.PersonID, payload.Nodes, payload.Edges)
+	if graphsTable != "" {
+		ns, es := dataStore.getGraph(payload.PersonID)
+		if derr := ddbPutGraph(r.Context(), payload.PersonID, ns, es); derr != nil {
+			log.Printf("SubmitHandler: ddbPutGraph error: %v", derr)
+		}
+	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -591,6 +931,12 @@ func DeleteNode(w http.ResponseWriter, r *http.Request) {
 	if !dataStore.deleteNode(personID, nodeID) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "node not found"})
 		return
+	}
+	if graphsTable != "" {
+		ns, es := dataStore.getGraph(personID)
+		if derr := ddbPutGraph(r.Context(), personID, ns, es); derr != nil {
+			log.Printf("DeleteNode: ddbPutGraph error: %v", derr)
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
