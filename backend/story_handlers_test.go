@@ -231,3 +231,31 @@ func TestListStories(t *testing.T) {
 		}
 	}
 }
+
+func TestHandleStoryRoutesWithStagePrefix(t *testing.T) {
+	setupTestServices()
+	ctx := context.Background()
+
+	createResp, err := storySvc.HandleCreateStory(ctx, events.APIGatewayProxyRequest{Body: `{"schoolId":"stage","title":"Stage Story"}`})
+	if err != nil || createResp.StatusCode != 200 {
+		t.Fatalf("failed to seed story: %v status=%d", err, createResp.StatusCode)
+	}
+
+	resp, err := handleStoryRoutes(ctx, events.APIGatewayProxyRequest{}, "GET", "/dev/api/stories")
+	if err != nil {
+		t.Fatalf("handleStoryRoutes returned error: %v", err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("unexpected status code: %d body=%s", resp.StatusCode, resp.Body)
+	}
+
+	var payload struct {
+		Stories []storyapi.Story `json:"stories"`
+	}
+	if err := json.Unmarshal([]byte(resp.Body), &payload); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+	if len(payload.Stories) == 0 {
+		t.Fatalf("expected at least one story in response")
+	}
+}

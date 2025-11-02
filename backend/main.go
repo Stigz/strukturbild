@@ -489,7 +489,8 @@ func handleStoryRoutes(ctx context.Context, req events.APIGatewayProxyRequest, m
 	if storySvc == nil {
 		return events.APIGatewayProxyResponse{StatusCode: 500, Headers: corsHeaders(), Body: "Story service not initialised"}, nil
 	}
-	trimmed := strings.TrimPrefix(path, "/api/")
+	normalized := normalizePath(path)
+	trimmed := strings.TrimPrefix(normalized, "/api/")
 	parts := strings.Split(trimmed, "/")
 	switch {
 	case method == "POST" && trimmed == "stories":
