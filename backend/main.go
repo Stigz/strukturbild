@@ -1,3 +1,4 @@
+// backend/main.go
 package main
 
 import (
@@ -9,47 +10,49 @@ import (
 )
 
 func main() {
-	if err := ensureLoaded(); err != nil {
-		log.Fatalf("failed to load fixtures: %v", err)
-	}
-
-	router := newRouter()
 	if runningInLambda() {
-		log.Printf("strukturbild backend starting in Lambda runtime")
-		startLambda(router)
+		log.Printf("strukturbild backend starting in Lambda runtime (HTTP API v2)")
+		// Defined in lambda_v2.go; starts lambda with the v2 handler.
+		startLambdaV2()
 		return
 	}
 
 	addr := serverAddress()
 	log.Printf("strukturbild backend listening on %s", addr)
-	if err := http.ListenAndServe(addr, router); err != nil {
+	if err := http.ListenAndServe(addr, newRouter()); err != nil {
 		log.Fatalf("server stopped: %v", err)
 	}
 }
 
 func newRouter() *mux.Router {
-	router := mux.NewRouter()
-	router.Use(corsMiddleware)
+	r := mux.NewRouter()
+	r.Use(corsMiddleware)
 
-	router.HandleFunc("/api/stories", ListStories).Methods(http.MethodGet)
-	router.HandleFunc("/api/stories/{id}/full", GetStoryFull).Methods(http.MethodGet)
-	router.HandleFunc("/api/stories/import", ImportStory).Methods(http.MethodPost)
-	router.HandleFunc("/struktur/{storyId}", GetStrukturByStory).Methods(http.MethodGet)
-	router.HandleFunc("/submit", SubmitHandler).Methods(http.MethodPost)
-	router.HandleFunc("/struktur/{storyId}/{nodeId}", DeleteNode).Methods(http.MethodDelete)
+	// Health (useful for local + parity with API check)
+	r.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"ok":"true"}`))
+	}).Methods(http.MethodGet)
+	r.HandleFunc("/api/health", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"ok":"true"}`))
+	}).Methods(http.MethodGet)
 
-	router.Methods(http.MethodOptions).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// CORS preflight
+	r.Methods(http.MethodOptions).HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	return router
+	return r
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-		w.Header().Set("Access-Control-Allow-Methods", "OPTIONS,GET,POST,DELETE")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, X-Amz-Date, X-Api-Key, X-Amz-Security-Token")
+		w.Header().Set("Access-Control-Allow-Methods", "OPTIONS,GET,POST,DELETE,PATCH")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.Header().Set("Access-Control-Max-Age", "86400")
 		if r.Method == http.MethodOptions {
@@ -68,4 +71,9 @@ func serverAddress() string {
 		return ":" + port
 	}
 	return ":8080"
+}
+
+// runningInLambda reports whether we're executing inside the Lambda runtime.
+func runningInLambda() bool {
+	return os.Getenv("AWS_LAMBDA_RUNTIME_API") != ""
 }

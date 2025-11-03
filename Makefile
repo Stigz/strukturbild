@@ -48,10 +48,27 @@ url-dev:
 	$(call TF_SELECT_WORKSPACE,dev)
 	cd terraform && terraform output api_url
 
+
 url-prod:
 	@echo "🌍 Your PROD API endpoint:"
 	$(call TF_SELECT_WORKSPACE,prod)
 	cd terraform && terraform output api_url
+
+health: health-prod
+
+health-dev:
+	@echo "🔎 Checking DEV /api/health ..."
+	$(call TF_SELECT_WORKSPACE,dev)
+	@API_URL="$$(cd terraform && terraform output -raw api_url)"; \
+	echo "GET $$API_URL/api/health"; \
+	curl -sS "$$API_URL/api/health" | sed -e 's/^/  /'
+
+health-prod:
+	@echo "🔎 Checking PROD /api/health ..."
+	$(call TF_SELECT_WORKSPACE,prod)
+	@API_URL="$$(cd terraform && terraform output -raw api_url)"; \
+	echo "GET $$API_URL/api/health"; \
+	curl -sS "$$API_URL/api/health" | sed -e 's/^/  /'
 
 logs-dev:
 	@$(call TF_SELECT_WORKSPACE,dev)
@@ -267,8 +284,8 @@ help-data:
 	@echo "make wipe-graph STORY=<id>                      # Delete ALL nodes for <id> via API"
 	@echo "make import-story FILE=<story.json>              # POST story+paragraphs+paraNodeMap to /api/stories/import"
 	@echo "make import-graph STORY=<id> FILE=<graph.json>  # POST nodes+edges to /submit (wrapper of 'make import')"
-        @echo "make reset-story STORY=<id> STORY_FILE=<story.json> GRAPH_FILE=<graph.json>"
-        @echo "                                               # wipe graph, then import story and graph"
+	@echo "make reset-story STORY=<id> STORY_FILE=<story.json> GRAPH_FILE=<graph.json>"
+	@echo "                                               # wipe graph, then import story and graph"
 
 # Delete all nodes for a storyId using the existing DELETE /struktur/<story>/<node> endpoint.
 # (Edges connected to a node are expected to be removed server-side by your handler.)
@@ -318,10 +335,10 @@ import-graph:
 
 # One-stop reset for a given story: wipe graph, import story, then import graph.
 reset-story:
-        @if [ -z "$(STORY)" ] || [ -z "$(STORY_FILE)" ] || [ -z "$(GRAPH_FILE)" ]; then \
-          echo "Usage: make reset-story STORY=<id> STORY_FILE=<story.json> GRAPH_FILE=<graph.json>"; exit 1; \
-        fi
-        @$(MAKE) --no-print-directory wipe-graph STORY=$(STORY)
-        @$(MAKE) --no-print-directory import-story FILE=$(STORY_FILE)
-        @$(MAKE) --no-print-directory import-graph STORY=$(STORY) FILE=$(GRAPH_FILE)
-        @echo "✨ Finished reset-story for $(STORY)"
+	@if [ -z "$(STORY)" ] || [ -z "$(STORY_FILE)" ] || [ -z "$(GRAPH_FILE)" ]; then \
+	  echo "Usage: make reset-story STORY=<id> STORY_FILE=<story.json> GRAPH_FILE=<graph.json>"; exit 1; \
+	fi
+	@$(MAKE) --no-print-directory wipe-graph STORY=$(STORY)
+	@$(MAKE) --no-print-directory import-story FILE=$(STORY_FILE)
+	@$(MAKE) --no-print-directory import-graph STORY=$(STORY) FILE=$(GRAPH_FILE)
+	@echo "✨ Finished reset-story for $(STORY)"
