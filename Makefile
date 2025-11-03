@@ -134,8 +134,8 @@ import-dir:
 #   make validate-dir STORY=MarcL DIR=Data
 
 help-validate:
-        @echo "make validate STORY=<id> FILE=<file.json>    # Check JSON shape & storyId & duplicate node ids"
-        @echo "make validate-dir STORY=<id> DIR=<dir>       # Validate each *.json in dir"
+	@echo "make validate STORY=<id> FILE=<file.json>    # Check JSON shape & storyId & duplicate node ids"
+	@echo "make validate-dir STORY=<id> DIR=<dir>       # Validate each *.json in dir"
 
 validate:
 	@if [ -z "$(STORY)" ] || [ -z "$(FILE)" ]; then \
@@ -147,12 +147,12 @@ validate:
 	@echo "🔎 Validating $(FILE) for STORY=$(STORY) ..."
 	@# 1) Must be valid JSON
 	@jq empty "$(FILE)" >/dev/null 2>&1 || { echo "❌ Not valid JSON: $(FILE)"; exit 1; }
-        @# 2) Top-level storyId must match
-        @env STORY="$(STORY)" jq -e '.storyId == env.STORY' "$(FILE)" >/dev/null || { echo "❌ Top-level .storyId does not match $(STORY)"; exit 1; }
-        @# 3) All nodes[].storyId (when present) must match
-        @env STORY="$(STORY)" jq -e '((.nodes // []) | map(select((.storyId // env.STORY) != env.STORY)) | length) == 0' "$(FILE)" >/dev/null || { echo "❌ Some nodes[].storyId differ from $(STORY)"; exit 1; }
-        @# 4) All edges[].storyId (when present) must match
-        @env STORY="$(STORY)" jq -e '((.edges // []) | map(select((.storyId // env.STORY) != env.STORY)) | length) == 0' "$(FILE)" >/dev/null || { echo "❌ Some edges[].storyId differ from $(STORY)"; exit 1; }
+	@# 2) Top-level storyId must match
+	@env STORY="$(STORY)" jq -e '.storyId == env.STORY' "$(FILE)" >/dev/null || { echo "❌ Top-level .storyId does not match $(STORY)"; exit 1; }
+	@# 3) All nodes[].storyId (when present) must match
+	@env STORY="$(STORY)" jq -e '((.nodes // []) | map(select((.storyId // env.STORY) != env.STORY)) | length) == 0' "$(FILE)" >/dev/null || { echo "❌ Some nodes[].storyId differ from $(STORY)"; exit 1; }
+	@# 4) All edges[].storyId (when present) must match
+	@env STORY="$(STORY)" jq -e '((.edges // []) | map(select((.storyId // env.STORY) != env.STORY)) | length) == 0' "$(FILE)" >/dev/null || { echo "❌ Some edges[].storyId differ from $(STORY)"; exit 1; }
 	@# 5) No duplicate node ids
 	@jq -e '((.nodes // []) | map(.id) | length) == ((.nodes // []) | map(.id) | unique | length)' "$(FILE)" >/dev/null || { echo "❌ Duplicate node ids detected in .nodes[].id"; exit 1; }
 	@echo "✅ Validation passed for $(FILE)"
@@ -175,28 +175,28 @@ validate-dir:
 #   make validate-refs FILE=Data/MarcL.json
 
 help-fix:
-        @echo "make fix-story STORY=<id> FILE=<file.json>   # Set top-level storyId and scrub mismatched node/edge storyIds"
-        @echo "make validate-verbose STORY=<id> FILE=<file.json>  # Print offending nodes/edges for storyId + duplicates"
+	@echo "make fix-story STORY=<id> FILE=<file.json>   # Set top-level storyId and scrub mismatched node/edge storyIds"
+	@echo "make validate-verbose STORY=<id> FILE=<file.json>  # Print offending nodes/edges for storyId + duplicates"
 	@echo "make validate-refs FILE=<file.json>  # Ensure edges reference existing node ids and list offenders"
 
 validate-verbose:
 	@if [ -z "$(STORY)" ] || [ -z "$(FILE)" ]; then \
 	  echo "Usage: make validate-verbose STORY=<id> FILE=<file.json>"; exit 1; \
 	fi
-        @echo "🔎 Verbose check for $(FILE) (STORY=$(STORY))"
-        @echo "— Top-level storyId:" && jq -r '.storyId // "(missing)"' "$(FILE)"
-        @echo "— Nodes with wrong storyId:" && env STORY="$(STORY)" jq -r '(.nodes // []) | map(select((.storyId // env.STORY) != env.STORY))' "$(FILE)"
-        @echo "— Edges with wrong storyId:" && env STORY="$(STORY)" jq -r '(.edges // []) | map(select((.storyId // env.STORY) != env.STORY))' "$(FILE)"
+	@echo "🔎 Verbose check for $(FILE) (STORY=$(STORY))"
+	@echo "— Top-level storyId:" && jq -r '.storyId // "(missing)"' "$(FILE)"
+	@echo "— Nodes with wrong storyId:" && env STORY="$(STORY)" jq -r '(.nodes // []) | map(select((.storyId // env.STORY) != env.STORY))' "$(FILE)"
+	@echo "— Edges with wrong storyId:" && env STORY="$(STORY)" jq -r '(.edges // []) | map(select((.storyId // env.STORY) != env.STORY))' "$(FILE)"
 	@echo "— Duplicate node ids:" && jq -r '((.nodes // []) | group_by(.id) | map(select(length>1) | {id: .[0].id, count: length}))' "$(FILE)"
 
 fix-story:
-        @if [ -z "$(STORY)" ] || [ -z "$(FILE)" ]; then \
+	@if [ -z "$(STORY)" ] || [ -z "$(FILE)" ]; then \
           echo "Usage: make fix-story STORY=<id> FILE=<file.json>"; exit 1; \
         fi
-        @echo "🛠️  Setting storyId=$(STORY) on top-level and cleaning node/edge storyIds in $(FILE) ..."
-        @tmp="$(FILE).tmp"; \
+	@echo "🛠️  Setting storyId=$(STORY) on top-level and cleaning node/edge storyIds in $(FILE) ..."
+	@tmp="$(FILE).tmp"; \
         env STORY="$(STORY)" jq '.storyId=env.STORY | .nodes=((.nodes // []) | map(del(.storyId))) | .edges=((.edges // []) | map(del(.storyId)))' "$(FILE)" > "$$tmp" && mv "$$tmp" "$(FILE)"
-        @echo "✅ Fixed storyId in $(FILE)"
+	@echo "✅ Fixed storyId in $(FILE)"
 
 validate-refs:
 	@if [ -z "$(FILE)" ]; then \
@@ -310,7 +310,7 @@ testdata-init:
 	@echo "📝 Writing testfiles/story_import.json"
 	@printf '%s\n' '{"story":{"storyId":"story-demo","schoolId":"Rychenberg","title":"Demo Story (Import)"},"paragraphs":[{"index":1,"title":"Ausloeser","bodyMd":"Erster Abschnitt - warum etwas ins Rollen kam.","citations":[{"transcriptId":"Rychenberg_Evelyne","minutes":[2,5]}]},{"index":2,"title":"Umsetzung","bodyMd":"Wie das Team vorgeht.","citations":[{"transcriptId":"Rychenberg_Maja","minutes":[10]}]}],"details":[{"paragraphIndex":1,"kind":"quote","transcriptId":"Rychenberg_Evelyne","startMinute":2,"endMinute":5,"text":"Das war der Knackpunkt."},{"paragraphIndex":2,"kind":"quote","transcriptId":"Rychenberg_Maja","startMinute":10,"endMinute":11,"text":"So haben wir es geloest."}]}' > testfiles/story_import.json
 	@echo "📝 Writing testfiles/submit_graph.json"
-        @printf '%s\n' '{"storyId":"story-demo","nodes":[{"id":"n1","label":"Schulentwicklungsziel X","type":"schulentwicklungsziel","detail":"Pilotprojekt","color":"#111827","x":120,"y":120,"isNode":true},{"id":"n2","label":"Promotor: SL","type":"promotor","color":"#22c55e","x":120,"y":280,"isNode":true}],"edges":[{"from":"n2","to":"n1","label":"unterstuetzt","type":"supports"}]}' > testfiles/submit_graph.json
+	@printf '%s\n' '{"storyId":"story-demo","nodes":[{"id":"n1","label":"Schulentwicklungsziel X","type":"schulentwicklungsziel","detail":"Pilotprojekt","color":"#111827","x":120,"y":120,"isNode":true},{"id":"n2","label":"Promotor: SL","type":"promotor","color":"#22c55e","x":120,"y":280,"isNode":true}],"edges":[{"from":"n2","to":"n1","label":"unterstuetzt","type":"supports"}]}' > testfiles/submit_graph.json
 smoke: testdata-init
 	@if [ "$(ENV)" != "dev" ]; then echo "❌ smoke only allowed with ENV=dev. Run: make ENV=dev smoke"; exit 1; fi
 	@$(MAKE) --no-print-directory import-story FILE=testfiles/story_import.json ENV=$(ENV)

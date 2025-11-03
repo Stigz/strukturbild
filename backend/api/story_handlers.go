@@ -95,7 +95,7 @@ type paragraphRecord struct {
 	StoryKey    string     `dynamodbav:"storyId"`
 	ID          string     `dynamodbav:"id"`
 	ParagraphID string     `dynamodbav:"paragraphId"`
-	StoryID     string     `dynamodbav:"storyId"`
+	StoryID     string     `dynamodbav:"storyIdPlain,omitempty"`
 	Index       int        `dynamodbav:"index"`
 	Title       string     `dynamodbav:"title,omitempty"`
 	BodyMd      string     `dynamodbav:"bodyMd"`
@@ -108,7 +108,7 @@ type detailRecord struct {
 	StoryKey     string `dynamodbav:"storyId"`
 	ID           string `dynamodbav:"id"`
 	DetailID     string `dynamodbav:"detailId"`
-	StoryID      string `dynamodbav:"storyId"`
+	StoryID      string `dynamodbav:"storyIdPlain,omitempty"`
 	ParagraphID  string `dynamodbav:"paragraphId"`
 	Kind         string `dynamodbav:"kind"`
 	TranscriptID string `dynamodbav:"transcriptId"`
@@ -420,29 +420,6 @@ func (s *StoryService) HandleImportStory(ctx context.Context, req events.APIGate
 	if paragraphNodeMap == nil && len(existingStory.ParagraphNodeMap) > 0 {
 		paragraphNodeMap = existingStory.ParagraphNodeMap
 	}
-	storyRecord := storyRecord{
-		StoryKey: fmt.Sprintf("STORY#%s", storyID),
-		ID:       fmt.Sprintf("STORY#%s", storyID),
-		Story: Story{
-			StoryID:          storyID,
-			SchoolID:         payload.Story.SchoolID,
-			Title:            payload.Story.Title,
-			CreatedAt:        chooseNonEmpty(existingStory.CreatedAt, now),
-			UpdatedAt:        now,
-			ParagraphNodeMap: paragraphNodeMap,
-		},
-	}
-	item, err := attributevalue.MarshalMap(storyRecord)
-	if err != nil {
-		return s.errorResponse(500, "Failed to marshal story")
-	}
-	_, err = s.dynamo.PutItem(ctx, &dynamodb.PutItemInput{
-		TableName: &s.tableName,
-		Item:      item,
-	})
-	if err != nil {
-		return s.errorResponse(500, fmt.Sprintf("Failed to save story: %v", err))
-	}
 	// Remove existing paragraphs and details before recreating to avoid duplicates
 	for _, detail := range existingDetails {
 		_, _ = s.dynamo.DeleteItem(ctx, &dynamodb.DeleteItemInput{
@@ -538,6 +515,59 @@ func (s *StoryService) HandleImportStory(ctx context.Context, req events.APIGate
 			return s.errorResponse(500, fmt.Sprintf("Failed to save detail: %v", err))
 		}
 	}
+	// --- sanitize and save story last (after paragraphs exist) ---
+	existingPIDs := map[string]struct{}{}
+	for _, rec := range paragraphByIndex {
+		existingPIDs[rec.ParagraphID] = struct{}{}
+	}
+
+	cleanPNM := map[string][]string{}
+	if paragraphNodeMap != nil {
+		for pid, ids := range paragraphNodeMap {
+			if _, ok := existingPIDs[pid]; !ok {
+				continue // skip unknown paragraph keys
+			}
+			seen := map[string]struct{}{}
+			out := make([]string, 0, len(ids))
+			for _, id := range ids {
+				id = strings.TrimSpace(id)
+				if id == "" {
+					continue
+				}
+				if _, dup := seen[id]; dup {
+					continue
+				}
+				seen[id] = struct{}{}
+				out = append(out, id)
+			}
+			if len(out) > 0 {
+				cleanPNM[pid] = out
+			}
+		}
+	}
+
+	storyRec := storyRecord{
+		StoryKey: fmt.Sprintf("STORY#%s", storyID),
+		ID:       fmt.Sprintf("STORY#%s", storyID),
+		Story: Story{
+			StoryID:          storyID,
+			SchoolID:         payload.Story.SchoolID,
+			Title:            payload.Story.Title,
+			CreatedAt:        chooseNonEmpty(existingStory.CreatedAt, now),
+			UpdatedAt:        now,
+			ParagraphNodeMap: cleanPNM,
+		},
+	}
+	item, err := attributevalue.MarshalMap(storyRec)
+	if err != nil {
+		return s.errorResponse(500, "Failed to marshal story")
+	}
+	if _, err := s.dynamo.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName: &s.tableName,
+		Item:      item,
+	}); err != nil {
+		return s.errorResponse(500, fmt.Sprintf("Failed to save story: %v", err))
+	}
 	return s.jsonResponse(200, map[string]string{"id": storyID})
 }
 
@@ -610,9 +640,13 @@ func (s *StoryService) fetchStoryBundle(ctx context.Context, storyID string) (St
 			case strings.HasPrefix(idAttr.Value, "PARA#"):
 				var rec paragraphRecord
 				if err := attributevalue.UnmarshalMap(item, &rec); err == nil {
+					sid := rec.StoryID
+					if sid == "" && strings.HasPrefix(rec.StoryKey, "STORY#") {
+						sid = strings.TrimPrefix(rec.StoryKey, "STORY#")
+					}
 					paragraphs = append(paragraphs, Paragraph{
 						ParagraphID: rec.ParagraphID,
-						StoryID:     rec.StoryID,
+						StoryID:     sid,
 						Index:       rec.Index,
 						Title:       rec.Title,
 						BodyMd:      rec.BodyMd,
@@ -624,9 +658,13 @@ func (s *StoryService) fetchStoryBundle(ctx context.Context, storyID string) (St
 			case strings.HasPrefix(idAttr.Value, "DET#"):
 				var rec detailRecord
 				if err := attributevalue.UnmarshalMap(item, &rec); err == nil {
+					sid := rec.StoryID
+					if sid == "" && strings.HasPrefix(rec.StoryKey, "STORY#") {
+						sid = strings.TrimPrefix(rec.StoryKey, "STORY#")
+					}
 					details = append(details, Detail{
 						DetailID:     rec.DetailID,
-						StoryID:      rec.StoryID,
+						StoryID:      sid,
 						ParagraphID:  rec.ParagraphID,
 						Kind:         rec.Kind,
 						TranscriptID: rec.TranscriptID,
