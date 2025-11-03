@@ -94,6 +94,14 @@
       .split-left { border-bottom: none; }
       .split-right { border-top: none; }
     }
+
+    /* --- Split view overrides: show BOTH panes in story mode --- */
+    body.story-mode #cy {
+      display: block !important;  /* override style.css which hides #cy in story-mode */
+    }
+    body.story-mode #story-root {
+      display: flex !important;   /* keep right pane visible */
+    }
   </style>
   <script>
     (function ensureStoryQueryParam() {

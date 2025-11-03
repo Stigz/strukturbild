@@ -377,3 +377,22 @@ body.story-mode #story-root {
   color: #b91c1c;
   font-size: 0.85rem;
 }
+
+
+/* --- Force paragraphs to stack vertically --- */
+.story-paragraphs-column .story-paragraph-list,
+.story-paragraph-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+  /* kill any old grid/columns that might be lingering */
+  grid-template-columns: none !important;
+  column-count: initial !important;
+}
+
+.story-paragraph-card {
+  width: 100% !important;
+  max-width: none !important;
+  /* make sure nothing floats */
+  float: none !important;
+}

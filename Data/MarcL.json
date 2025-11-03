@@ -1,0 +1,340 @@
+{
+  "id": "marcl_batch_001",
+  "personId": "MarcL",
+  "nodes": [
+    {
+      "id": "marcl_logbuch",
+      "personId": "MarcL",
+      "label": "Logbuch als Unterrichtsform",
+      "type": "entwicklungsinhalt",
+      "color": "#111827",
+      "detail": "„Nicht nur hier an der Rüti Schule, sondern in ganz Ostermundigen wird mit dem Logbuch gearbeitet. [...] Eigentlich steckt aber eine ganze Art des Unterrichts dahinter. [...] Am besten funktioniert es über Überzeugung: wenn Lehrpersonen einmal zuschauen können und merken: ‘Oh ja, das ist spannend.’“ [03:39–04:40]\n„Der starre 45-Minuten-Rhythmus macht da eigentlich wenig Sinn. [...] Wenn das System der Logbucharbeit funktioniert – bei mir in der Klasse nach etwa einem halben Jahr –, können die Kinder ihre eigenen Interessen einbringen und verfolgen.“ [05:57–07:13]"
+    },
+    {
+      "id": "marcl_async_lernkontrollen",
+      "personId": "MarcL",
+      "label": "Asynchrone Lernkontrollen („wenn bereit“)",
+      "type": "entwicklungsinhalt",
+      "color": "#111827",
+      "detail": "„Wir definieren die Voraussetzungen, damit du überhaupt die Lernkontrolle machst: Du musst zuerst dies und das haben und verstehen, worum es geht. Wenn du bereit bist, machst du die Lernkontrolle. [...] Ein oder zwei Schülerinnen/Schüler machen die Lernkontrolle, die anderen arbeiten am Logbuch. Das geht gut.“ [09:38–10:32]\n„Du musst halt deine Fragen so stellen, dass man sie nicht mit Auswendiglernen beantworten kann.“ [10:37–10:42]"
+    },
+    {
+      "id": "marcl_teamteaching",
+      "personId": "MarcL",
+      "label": "Teamteaching (2–3 LP)",
+      "type": "entwicklungsinhalt",
+      "color": "#111827",
+      "detail": "„Ich hoffe – das höre ich da manchmal von Verantwortlichen –, Teamteaching wäre das A und O.“ [13:26–14:05]\n„Mehr Teamteaching. [...] Zu zweit ist es besser, zu dritt noch besser – aber zwei wären schon extrem zufriedenstellend.“ [34:05–34:42]"
+    },
+    {
+      "id": "marcl_gfk_na",
+      "personId": "MarcL",
+      "label": "GFK & Neue Autorität",
+      "type": "entwicklungsinhalt",
+      "color": "#111827",
+      "detail": "„Ganz wichtig ist die Giraffensprache und die Gewaltfreie Kommunikation: Wie kommunizieren wir mit den Kindern?“ [24:05–24:13]\n„Du streitest als Lehrperson mit einem Kind nicht. [...] ‘Am Mittag kommst du zu mir; wir schauen das zusammen an.’ [...] Es ist anders als früher [...] die ganze Klasse war aufgeschreckt. Ist eigentlich nicht nötig.“ [28:31–29:22]"
+    },
+    {
+      "id": "marcl_lesefoerderung_2026",
+      "personId": "MarcL",
+      "label": "Leseförderung (ab 2026)",
+      "type": "entwicklungsinhalt",
+      "color": "#111827",
+      "detail": "„Das ist dann ein Prozess, damit man z. B. im Jahr 2026 gezielt starten kann. [...] Man darf den Karren nicht überladen.“ [19:45–20:57]\n„Jede Klasse hat ihre Klassenlektüre angeschrieben. Das animiert auch andere: ‘Ah, die lesen das – guck mal.’ Sichtbar machen.“ [40:35–41:07]"
+    },
+    {
+      "id": "marcl_ki_integration",
+      "personId": "MarcL",
+      "label": "KI: Einordnung/Einbettung",
+      "type": "entwicklungsinhalt",
+      "color": "#111827",
+      "detail": "„[KI] ist auch ein Thema vom Leitungsteam. [...] Wir müssen uns damit auseinandersetzen. Was bedeutet es für uns? Wie bauen wir es ein? Was sind die Gefahren? Was sind die Nutzen?“ [51:59–52:24]\n„Zwischenschulleitungen – das ist wichtig. Sehr wichtig.“ [51:59–52:24]"
+    },
+    {
+      "id": "marcl_beduerfnis_dosierung",
+      "personId": "MarcL",
+      "label": "Bedürfnis: Dosierung (nicht überfrachten)",
+      "type": "bedürfnis",
+      "color": "#a855f7",
+      "detail": "„Wenn die Schulleitung den Wagen überlädt – zu viel reinpacken will –, dann ist das der Bremsstein. Man muss sehr sorgfältig dosieren und mit dem Kollegium klären: Wie sind wir unterwegs? Ist das Tempo gut?“ [31:37–32:36]"
+    },
+    {
+      "id": "marcl_beduerfnis_lernendenzentrierung",
+      "personId": "MarcL",
+      "label": "Bedürfnis: Lernenden-Zentrierung/Kernarbeit",
+      "type": "bedürfnis",
+      "color": "#a855f7",
+      "detail": "„Unsere Hauptarbeit ist immer mit den Kindern, und das soll auch die Kernarbeit sein – nicht irgendwelche Projekte. [...] Im Moment [...] ist es meine Klasse. Wir führen das Logbuchsystem ein. Damit bin ich voll ausgelastet.“ [01:21–02:47]"
+    },
+    {
+      "id": "marcl_beduerfnis_lesen",
+      "personId": "MarcL",
+      "label": "Bedürfnis: Leseförderung",
+      "type": "bedürfnis",
+      "color": "#a855f7",
+      "detail": "„Ja, das hört man auch schweizweit.“ [19:14–19:23]\n„Lesen muss ein Teil der Schule sein. Darum [...] sind die ersten fünf Minuten fürs Lesen reserviert.“ [40:35–41:07]"
+    },
+    {
+      "id": "marcl_trigger_montessori",
+      "personId": "MarcL",
+      "label": "Trigger: Kontakt Montessori",
+      "type": "trigger",
+      "color": "#f59e0b",
+      "detail": "„Der Auslöser war, dass hier eine Montessori-Schule eingemietet war. [...] Ich habe mich viel mit ihnen ausgetauscht und Schulbesuche gemacht. Die Denkansätze dort [...] haben für mich Sinn ergeben.“ [05:29–05:48]"
+    },
+    {
+      "id": "marcl_trigger_kanton",
+      "personId": "MarcL",
+      "label": "Trigger: Kantonale Vorgaben/Impulse",
+      "type": "trigger",
+      "color": "#f59e0b",
+      "detail": "„Die Leseförderung kommt vom Kanton – sie sagen, die müsse betrieben werden. Vorgaben vom Kanton gibt es halt manchmal.“ [24:05–24:13]\n„Dann kommt der Kanton auch mit einem Konzept. [...] Das ist dann massgeschneidert.“ [40:20–40:31]"
+    },
+    {
+      "id": "marcl_barriere_notenpflicht",
+      "personId": "MarcL",
+      "label": "Barriere: Notenpflicht (4. Kl.)",
+      "type": "barriere",
+      "color": "#ef4444",
+      "detail": "„Bei uns gibt es im Moment noch Noten [...] also muss man irgendwann Lernkontrollen machen. Wie bringst du das mit dieser Arbeitsweise zusammen?“ [08:46–09:13]"
+    },
+    {
+      "id": "marcl_barriere_ueberfrachtung",
+      "personId": "MarcL",
+      "label": "Barriere: Themenüberfrachtung",
+      "type": "barriere",
+      "color": "#ef4444",
+      "detail": "„Wenn du zu viel machst – noch mit Fortbildungen und immer neuen Themen –, dann ist das der Bremsstein. [...] Man darf den Karren nicht überladen.“ [31:37–32:36; 19:45–20:57]"
+    },
+    {
+      "id": "marcl_barriere_if_ressource",
+      "personId": "MarcL",
+      "label": "Barriere: IF 1:1 bindet Ressourcen",
+      "type": "barriere",
+      "color": "#ef4444",
+      "detail": "„Eins-zu-eins ist nicht immer nötig – manche Kinder stört es sogar, wenn ständig jemand über die Schulter schaut. [...] In den anderen vier Minuten kannst du dich einem anderen Kind widmen.“ [35:38–36:21]"
+    },
+    {
+      "id": "marcl_barriere_elternskepsis",
+      "personId": "MarcL",
+      "label": "Barriere: Elternskepsis (zu Beginn)",
+      "type": "barriere",
+      "color": "#ef4444",
+      "detail": "„Häufig ist es so, dass die Eltern am Anfang finden: Das ist schwierig, das ist mein Kind. [...] Wir reden darüber – ein halbes Jahr. Lasst es passieren. [...] Oft verstehen die Eltern erst nach den Kinder, wie es funktioniert – und sagen dann: ‘Das ist super.’“ [25:22–26:47]"
+    },
+    {
+      "id": "marcl_promotor_marc",
+      "personId": "MarcL",
+      "label": "Promotor (Fach): Marc",
+      "type": "promotor",
+      "color": "#22c55e",
+      "detail": "„Seit 1985. [...] Jetzt bin ich Co-Schulleiter und gleichzeitig Leiter der Tagesschule. Mein Herz und meine Hauptarbeit sind aber weiterhin die Klassenführung.“ [00:10–00:58]\n„Es ist schon anders als früher. [...] Am Anfang war es schwierig – ich war Einzelkämpfer. [...] Jetzt ist es lehrplan21-kompatibel.“ [07:44–08:37]"
+    },
+    {
+      "id": "marcl_promotor_leitungsteam",
+      "personId": "MarcL",
+      "label": "Promotor (Macht): Leitungsteam",
+      "type": "promotor",
+      "color": "#22c55e",
+      "detail": "„Wenn die Lehrperson nicht das Gefühl hat, es werde befohlen, sondern es entstehe aus uns heraus – unser Wunsch, unsere Initiative –, dann ist die Akzeptanz da. [...] Mit diesen Gefässen versuchen wir, die Stimmung der Lehrerschaft mitzunehmen.“ [15:25–16:26; 14:37–15:19]"
+    },
+    {
+      "id": "marcl_promotor_stufenleitungen",
+      "personId": "MarcL",
+      "label": "Promotor (Prozess): Stufenleitungen",
+      "type": "promotor",
+      "color": "#22c55e",
+      "detail": "„Der Weg ist: in den Stufen besprochen; die Stufenleitungen tragen es ins Leitungsteam, das Leitungsteam beschliesst den Weg, und dann geht es wieder zurück.“ [17:04–17:05]\n„So finden wir möglichst grossen Konsens und Wiederhall im Kollegium.“ [14:37–15:19]"
+    },
+    {
+      "id": "marcl_promotor_kursleiter_gfk",
+      "personId": "MarcL",
+      "label": "Promotor: Kursleiter GFK/NA",
+      "type": "promotor",
+      "color": "#22c55e",
+      "detail": "„Wir haben einen Kursleiter dafür – Leute, die in die Schule kommen and sich damit vertieft auseinandersetzen, um Schulungen in diesem Bereich zu machen.“ [30:12–30:31]"
+    },
+    {
+      "id": "marcl_promotor_sl_konf",
+      "personId": "MarcL",
+      "label": "Promotor: SL-Konferenz (2-wöchig)",
+      "type": "promotor",
+      "color": "#22c55e",
+      "detail": "„Insgesamt haben wir vier Schulen hier in Ostermundigen, und wir haben eine Schulleitungskonferenz. [...] Alle zwei Wochen, am Mittwoch, ist eine Schulleitungskonferenz.“ [51:23–52:34]"
+    },
+    {
+      "id": "marcl_outcome_selbststeuerung",
+      "personId": "MarcL",
+      "label": "Outcome: Selbststeuerung",
+      "type": "outcome",
+      "color": "#3b82f6",
+      "detail": "„Wenn das System funktioniert [...] können die Kinder ihre eigenen Interessen einbringen und verfolgen. [...] Nicht immer kommen alle Inhalte von der Lehrperson.“ [05:57–07:13]\n„Es gibt Grundanforderungen [...] danach ist die Welt offen.“ [07:18–07:43]"
+    },
+    {
+      "id": "marcl_outcome_taktstress",
+      "personId": "MarcL",
+      "label": "Outcome: Taktstress ↓",
+      "type": "outcome",
+      "color": "#3b82f6",
+      "detail": "„Der starre 45-Minuten-Rhythmus macht wenig Sinn. [...] Das nimmt diesen Stress ein bisschen weg – den Druck.“ [05:57–07:13]"
+    },
+    {
+      "id": "marcl_outcome_passung",
+      "personId": "MarcL",
+      "label": "Outcome: faire Passung",
+      "type": "outcome",
+      "color": "#3b82f6",
+      "detail": "„Nicht alle müssen zur gleichen Zeit am gleichen Punkt sein. [...] Wenn du bereit bist, machst du die Lernkontrolle.“ [09:38–10:32]"
+    },
+    {
+      "id": "marcl_outcome_praesenz",
+      "personId": "MarcL",
+      "label": "Outcome: Präsenz/Deeskalation",
+      "type": "outcome",
+      "color": "#3b82f6",
+      "detail": "„Du streitest als Lehrperson mit einem Kind nicht. [...] Ich bin hartnäckig: ‘Am Mittag kommst du zu mir; wir schauen das zusammen an.’ [...] Es grenzt sich ab – feinstofflich, aber wichtig.“ [28:31–29:22]"
+    },
+    {
+      "id": "marcl_outcome_sichtbarkeit",
+      "personId": "MarcL",
+      "label": "Outcome: Sichtbarkeit (Klassenlektüren)",
+      "type": "outcome",
+      "color": "#3b82f6",
+      "detail": "„Jede Klasse hat ihre Klassenlektüre angeschrieben. Das animiert auch andere: ‘Ah, die lesen das.’ Sichtbar machen. [...] Lesen muss ein Teil der Schule sein.“ [40:35–41:07]"
+    }
+  ],
+  "edges": [
+    {
+      "from": "marcl_trigger_montessori",
+      "to": "marcl_logbuch",
+      "label": "triggert",
+      "personId": "MarcL"
+    },
+    {
+      "from": "marcl_trigger_kanton",
+      "to": "marcl_lesefoerderung_2026",
+      "label": "stösst an",
+      "personId": "MarcL"
+    },
+    {
+      "from": "marcl_beduerfnis_dosierung",
+      "to": "marcl_logbuch",
+      "label": "erfordert Rahmen",
+      "personId": "MarcL"
+    },
+    {
+      "from": "marcl_beduerfnis_lernendenzentrierung",
+      "to": "marcl_logbuch",
+      "label": "motiviert",
+      "personId": "MarcL"
+    },
+    {
+      "from": "marcl_beduerfnis_lesen",
+      "to": "marcl_lesefoerderung_2026",
+      "label": "bedarf",
+      "personId": "MarcL"
+    },
+    {
+      "from": "marcl_barriere_notenpflicht",
+      "to": "marcl_async_lernkontrollen",
+      "label": "erzwingt Anpassung",
+      "personId": "MarcL"
+    },
+    {
+      "from": "marcl_barriere_ueberfrachtung",
+      "to": "marcl_beduerfnis_dosierung",
+      "label": "erzeugt Bedarf",
+      "personId": "MarcL"
+    },
+    {
+      "from": "marcl_barriere_if_ressource",
+      "to": "marcl_teamteaching",
+      "label": "bindet Ressourcen",
+      "personId": "MarcL"
+    },
+    {
+      "from": "marcl_barriere_elternskepsis",
+      "to": "marcl_logbuch",
+      "label": "anfangs Skepsis",
+      "personId": "MarcL"
+    },
+    {
+      "from": "marcl_promotor_marc",
+      "to": "marcl_logbuch",
+      "label": "treibt",
+      "personId": "MarcL"
+    },
+    {
+      "from": "marcl_promotor_marc",
+      "to": "marcl_async_lernkontrollen",
+      "label": "gestaltet",
+      "personId": "MarcL"
+    },
+    {
+      "from": "marcl_promotor_marc",
+      "to": "marcl_gfk_na",
+      "label": "promotet",
+      "personId": "MarcL"
+    },
+    {
+      "from": "marcl_promotor_leitungsteam",
+      "to": "marcl_beduerfnis_dosierung",
+      "label": "achtet auf",
+      "personId": "MarcL"
+    },
+    {
+      "from": "marcl_promotor_leitungsteam",
+      "to": "marcl_lesefoerderung_2026",
+      "label": "priorisiert",
+      "personId": "MarcL"
+    },
+    {
+      "from": "marcl_promotor_stufenleitungen",
+      "to": "marcl_logbuch",
+      "label": "koordiniert",
+      "personId": "MarcL"
+    },
+    {
+      "from": "marcl_promotor_kursleiter_gfk",
+      "to": "marcl_gfk_na",
+      "label": "schult",
+      "personId": "MarcL"
+    },
+    {
+      "from": "marcl_promotor_sl_konf",
+      "to": "marcl_ki_integration",
+      "label": "berät",
+      "personId": "MarcL"
+    },
+    {
+      "from": "marcl_logbuch",
+      "to": "marcl_outcome_selbststeuerung",
+      "label": "führt zu",
+      "personId": "MarcL"
+    },
+    {
+      "from": "marcl_logbuch",
+      "to": "marcl_outcome_taktstress",
+      "label": "senkt",
+      "personId": "MarcL"
+    },
+    {
+      "from": "marcl_async_lernkontrollen",
+      "to": "marcl_outcome_passung",
+      "label": "führt zu",
+      "personId": "MarcL"
+    },
+    {
+      "from": "marcl_gfk_na",
+      "to": "marcl_outcome_praesenz",
+      "label": "führt zu",
+      "personId": "MarcL"
+    },
+    {
+      "from": "marcl_lesefoerderung_2026",
+      "to": "marcl_outcome_sichtbarkeit",
+      "label": "macht sichtbar",
+      "personId": "MarcL"
+    }
+  ]
+}

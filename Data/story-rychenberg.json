@@ -1,0 +1,42 @@
+{
+  "story": {
+    "storyId": "story-rychenberg",
+    "schoolId": "rychenberg",
+    "title": "Rychenberg – Soziokratie unter Prüfstein"
+  },
+  "paragraphs": [
+    {
+      "paragraphId": "para-49838e65-ad43-45f2-8eed-8e67be888a36",
+      "storyId": "story-rychenberg",
+      "index": 1,
+      "bodyMd": "Am Rychenberg hat sich in den letzten Jahren eine soziokratische Ordnung etabliert, die heute gerade deshalb interessant ist, weil sie unter Führungsfluktuation auf ihre Eigenstabilität getestet wird: Mehrere Wechsel bis hin zum Wegfall der neuen Schulleitung bilden den Prüfstein, ob die Schule als System trägt — nicht nur dank einzelner Figuren (0–1). Die Ausgangsfrage lautet: Trägt die Soziokratie ohne Schulleitung als Motor? (0–1)",
+      "citations": [
+        { "transcriptId": "rychenberg_clean", "minutes": [0, 1] }
+      ]
+    },
+    {
+      "paragraphId": "para-b0ce1365-268a-49dd-9c6d-cae06bc33132",
+      "storyId": "story-rychenberg",
+      "index": 2,
+      "bodyMd": "Soziokratie meint hier nicht ein loses Ideal, sondern einen klar definierten Entscheidungs- und Beteiligungsmodus: Bildformung → Meinungsrunde → Konsent. Erst werden Informationen zusammengetragen, dann spricht jede Person nacheinander, und schließlich wird auf „kein schwerwiegender Einwand“ entschieden. Dieser Ablauf de-personalisiert Entscheidungen und macht sie replizierbar (2). Die Kreisstruktur sichert, dass sich niemand entziehen kann: Jede Lehrperson gehört mindestens einem Jahrgangskreis an; „sich raushalten“ ist strukturell nicht vorgesehen (3–4). Damit bearbeitet die Schule eine Problemgeschichte: Früher trugen „ein paar wenige“, andere blieben Mitläufer — genau das soll die Struktur abschaffen (3).",
+      "citations": [
+        { "transcriptId": "rychenberg_clean", "minutes": [2, 3, 4] }
+      ]
+    },
+    {
+      "paragraphId": "para-50014360-bb20-47ce-ae2c-9ca5fbedced0",
+      "storyId": "story-rychenberg",
+      "index": 3,
+      "bodyMd": "Mit dem Wegfall/Wechsel der Schulleitung rücken zwei operative Themen in den Fokus: Moderation verankern und Onboarding neuer Lehrpersonen. Beides soll die Selbststeuerung des Systems stärken und jene Nahtstellen schließen, an denen die Verbindlichkeit noch nicht verankert ist (1). Moderation wird ausdrücklich als Fokusthema benannt und über interne Soziokratie-Trainer:innen (mit Anbindung an ein Soziokratie-Zentrum) aufgebaut; Ziel ist Kapazitätsaufbau im Kollegium, nicht Abhängigkeit von Externen (22–23, 48–52). Viele neue LPs machen sichtbar, dass die Ordnung gelernt und geübt werden muss; Onboarding ist hier keine Formalität, sondern Teil der Schulentwicklung (1).",
+      "citations": [
+        { "transcriptId": "rychenberg_clean", "minutes": [1] },
+        { "transcriptId": "rychenberg_clean", "minutes": [22, 23, 48, 49, 50, 51, 52] }
+      ]
+    }
+  ],
+  "paragraphNodeMap": {
+    "para-49838e65-ad43-45f2-8eed-8e67be888a36": ["n1", "n2"],
+    "para-b0ce1365-268a-49dd-9c6d-cae06bc33132": ["n2", "n3", "n4"],
+    "para-50014360-bb20-47ce-ae2c-9ca5fbedced0": ["n1", "n7"]
+  }
+}
