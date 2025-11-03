@@ -1,6 +1,6 @@
 /* global React, ReactDOM, marked */
 (() => {
-  const { useEffect, useMemo, useRef, useState } = React;
+  const { useEffect, useState } = React;
 
   // Util: safe decode & build API base
   const API_BASE = (window.STRUKTURBILD_API_URL || "").replace(/\/+$/, "");
@@ -23,23 +23,13 @@
     }
   }
 
-  // Simple helper to emit focus to the Cytoscape bridge in script.js
-  function emitFocus(paragraphId, nodeIds) {
-    window.dispatchEvent(
-      new CustomEvent("story:focusParagraph", {
-        detail: { paragraphId, nodeIds: Array.isArray(nodeIds) ? nodeIds : [] }
-      })
-    );
-  }
-
   function StoryUI({ storyId }) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [story, setStory] = useState(null);
     const [paragraphs, setParagraphs] = useState([]);
     const [detailsByParagraph, setDetailsByParagraph] = useState({});
-    const [paraNodeMap, setParaNodeMap] = useState({});
-    const [activeParaId, setActiveParaId] = useState("");
+    const [focusedParaId, setFocusedParaId] = useState(null);
 
     // Fetch story on mount / storyId change
     useEffect(() => {
@@ -55,7 +45,13 @@
 
           if (cancelled) return;
 
-          setStory(data.story || null);
+          const storyPayload = data.story || null;
+          const mapping = (storyPayload && storyPayload.paragraphNodeMap)
+            || data.paragraphNodeMap
+            || window.__PARA_NODE_MAP__
+            || null;
+
+          setStory(storyPayload ? { ...storyPayload, paragraphNodeMap: mapping || storyPayload.paragraphNodeMap || null } : null);
 
           const paras = Array.isArray(data.paragraphs)
             ? data.paragraphs.slice().sort((a, b) => (a.index || 0) - (b.index || 0))
@@ -64,17 +60,7 @@
 
           setDetailsByParagraph(data.detailsByParagraph || {});
 
-          // Prefer API-supplied mapping; else use window.__PARA_NODE_MAP__
-          const mapping =
-            (data.paragraphNodeMap && typeof data.paragraphNodeMap === "object")
-              ? data.paragraphNodeMap
-              : (window.__PARA_NODE_MAP__ || {});
-          setParaNodeMap(mapping || {});
-
-          // Do NOT emit initial focus immediately — cy might not exist yet.
-          // We’ll emit on first user hover/click. If you really want auto-focus:
-          // setActiveParaId(paras[0]?.paragraphId || "");
-          // emitFocus(paras[0]?.paragraphId, mapping[paras[0]?.paragraphId] || []);
+          setFocusedParaId(null);
         } catch (e) {
           if (!cancelled) setError(String(e.message || e));
         } finally {
@@ -85,12 +71,16 @@
       return () => { cancelled = true; };
     }, [storyId]);
 
-    // Handlers
-    function handleFocus(paragraphId) {
-      setActiveParaId(paragraphId);
-      const nodeIds = (paraNodeMap && paraNodeMap[paragraphId]) || [];
-      emitFocus(paragraphId, nodeIds);
-    }
+    // Apply focus to the graph whenever selection changes
+    useEffect(() => {
+      const mapping = (story && story.paragraphNodeMap) || window.__PARA_NODE_MAP__ || {};
+      const nodeList = focusedParaId ? (mapping?.[focusedParaId] || []) : null;
+      const payload = nodeList == null ? null : (Array.isArray(nodeList) ? nodeList : []);
+      const focusFn = window.applyParagraphFocus || window.__CY_FOCUS__;
+      if (typeof focusFn === "function") {
+        focusFn(payload);
+      }
+    }, [story, focusedParaId]);
 
     // Render helpers
     function renderCitations(p) {
@@ -141,7 +131,7 @@
         {/* Vertical list of paragraph cards */}
         <div className="story-paragraph-list">
           {paragraphs.map(p => {
-            const active = p.paragraphId === activeParaId;
+            const active = p.paragraphId === focusedParaId;
             const html = (typeof marked !== "undefined" && p.bodyMd)
               ? marked.parse(p.bodyMd)
               : (p.bodyMd || "");
@@ -149,8 +139,7 @@
               <article
                 key={p.paragraphId}
                 className={`story-paragraph-card${active ? " active" : ""}`}
-                onMouseEnter={() => handleFocus(p.paragraphId)}
-                onClick={() => handleFocus(p.paragraphId)}
+                onClick={() => setFocusedParaId(focusedParaId === p.paragraphId ? null : p.paragraphId)}
               >
                 <header>
                   <h2>§{p.index || "?"}</h2>
