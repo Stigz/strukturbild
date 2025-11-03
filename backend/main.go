@@ -45,15 +45,14 @@ var tableName = func() string {
 }()
 
 type Node struct {
-	ID       string `json:"id"`
-	Label    string `json:"label"`
-	Detail   string `json:"detail,omitempty"`
-	Type     string `json:"type,omitempty"` // promoter|barrier|event|goal|actor|...
-	Time     string `json:"time,omitempty"` // ISO date or relative (T0..Tn)
-	Color    string `json:"color,omitempty"`
-	X        int    `json:"x"` // X position for layout
-	Y        int    `json:"y"` // Y position for layout
-	PersonID string `json:"personId"`
+	ID     string `json:"id"`
+	Label  string `json:"label"`
+	Detail string `json:"detail,omitempty"`
+	Type   string `json:"type,omitempty"` // promoter|barrier|event|goal|actor|...
+	Time   string `json:"time,omitempty"` // ISO date or relative (T0..Tn)
+	Color  string `json:"color,omitempty"`
+	X      int    `json:"x"` // X position for layout
+	Y      int    `json:"y"` // Y position for layout
 }
 
 type Edge struct {
@@ -68,7 +67,7 @@ type Strukturbild struct {
 	ID                 string                       `json:"id" dynamodbav:"id"` // Add this line
 	Nodes              []Node                       `json:"nodes"`
 	Edges              []Edge                       `json:"edges"`
-	PersonID           string                       `json:"personId"`
+	StoryID            string                       `json:"storyId"`
 	Story              *storyapi.Story              `json:"story,omitempty"`
 	Paragraphs         []storyapi.Paragraph         `json:"paragraphs,omitempty"`
 	DetailsByParagraph map[string][]storyapi.Detail `json:"detailsByParagraph,omitempty"`
@@ -76,7 +75,7 @@ type Strukturbild struct {
 
 type DBItem struct {
 	ID        string `json:"id" dynamodbav:"id"`
-	PersonID  string `json:"personId" dynamodbav:"personId"`
+	StoryID   string `json:"storyId" dynamodbav:"storyId"`
 	Label     string `json:"label" dynamodbav:"label"`
 	Detail    string `json:"detail,omitempty" dynamodbav:"detail,omitempty"`
 	Type      string `json:"type,omitempty" dynamodbav:"type,omitempty"`
@@ -112,12 +111,12 @@ func getHandler(ctx context.Context, request events.APIGatewayProxyRequest) (eve
 
 	// Use global svc directly
 
-	// Scan for all items with personId = id
+	// Scan for all items with storyId = id
 	input := &dynamodb.QueryInput{
 		TableName:              aws.String(tableName),
-		KeyConditionExpression: aws.String("personId = :pid"),
+		KeyConditionExpression: aws.String("storyId = :sid"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":pid": &types.AttributeValueMemberS{Value: id},
+			":sid": &types.AttributeValueMemberS{Value: id},
 		},
 	}
 
@@ -150,15 +149,14 @@ func getHandler(ctx context.Context, request events.APIGatewayProxyRequest) (eve
 		}
 		if item.IsNode {
 			nodes = append(nodes, Node{
-				ID:       item.ID,
-				Label:    item.Label,
-				Detail:   item.Detail,
-				Type:     item.Type,
-				Time:     item.Time,
-				Color:    item.Color,
-				X:        item.X,
-				Y:        item.Y,
-				PersonID: item.PersonID,
+				ID:     item.ID,
+				Label:  item.Label,
+				Detail: item.Detail,
+				Type:   item.Type,
+				Time:   item.Time,
+				Color:  item.Color,
+				X:      item.X,
+				Y:      item.Y,
 			})
 		} else {
 			edges = append(edges, Edge{
@@ -172,10 +170,10 @@ func getHandler(ctx context.Context, request events.APIGatewayProxyRequest) (eve
 	}
 
 	sb := Strukturbild{
-		ID:       "",
-		Nodes:    nodes,
-		Edges:    edges,
-		PersonID: id,
+		ID:      "",
+		Nodes:   nodes,
+		Edges:   edges,
+		StoryID: id,
 	}
 
 	if storySvc != nil {
@@ -229,16 +227,16 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		sb.ID = uuid.New().String()
 	}
 
-	if sb.PersonID == "" {
-		log.Printf("❌ Missing personId")
+	if sb.StoryID == "" {
+		log.Printf("❌ Missing storyId")
 		return events.APIGatewayProxyResponse{
 			StatusCode: 400,
 			Headers:    corsHeaders(),
-			Body:       "Missing personId",
+			Body:       "Missing storyId",
 		}, nil
 	}
 
-	log.Printf("✅ Received strukturbild for person: %s with %d nodes", sb.PersonID, len(sb.Nodes))
+	log.Printf("✅ Received strukturbild for story: %s with %d nodes", sb.StoryID, len(sb.Nodes))
 
 	// Use global svc directly
 
@@ -251,7 +249,7 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		node := sb.Nodes[i]
 		dbItems = append(dbItems, DBItem{
 			ID:        node.ID,
-			PersonID:  node.PersonID,
+			StoryID:   sb.StoryID,
 			Label:     node.Label,
 			Detail:    node.Detail,
 			Type:      node.Type,
@@ -267,7 +265,7 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	for _, edge := range sb.Edges {
 		dbItems = append(dbItems, DBItem{
 			ID:        uuid.New().String(),
-			PersonID:  sb.PersonID,
+			StoryID:   sb.StoryID,
 			Label:     edge.Label,
 			Detail:    edge.Detail,
 			Type:      edge.Type,
@@ -333,8 +331,8 @@ func lambdaHandler(ctx context.Context, req events.APIGatewayProxyRequest) (even
 		parts := strings.Split(strings.TrimPrefix(npath, "/struktur/"), "/")
 		if len(parts) == 2 {
 			req.PathParameters = map[string]string{
-				"personId": parts[0],
-				"nodeId":   parts[1],
+				"storyId": parts[0],
+				"nodeId":  parts[1],
 			}
 			return deleteHandler(ctx, req)
 		}
@@ -361,22 +359,22 @@ func lambdaHandler(ctx context.Context, req events.APIGatewayProxyRequest) (even
 }
 
 func deleteHandler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
-	personId := request.PathParameters["personId"]
+	storyId := request.PathParameters["storyId"]
 	nodeId := request.PathParameters["nodeId"]
 
-	if personId == "" || nodeId == "" {
+	if storyId == "" || nodeId == "" {
 		return events.APIGatewayProxyResponse{
 			StatusCode: 400,
 			Headers:    corsHeaders(),
-			Body:       "Missing personId or nodeId",
+			Body:       "Missing storyId or nodeId",
 		}, nil
 	}
 
 	input := &dynamodb.DeleteItemInput{
 		TableName: aws.String(tableName),
 		Key: map[string]types.AttributeValue{
-			"personId": &types.AttributeValueMemberS{Value: personId},
-			"id":       &types.AttributeValueMemberS{Value: nodeId},
+			"storyId": &types.AttributeValueMemberS{Value: storyId},
+			"id":      &types.AttributeValueMemberS{Value: nodeId},
 		},
 	}
 
@@ -390,7 +388,7 @@ func deleteHandler(ctx context.Context, request events.APIGatewayProxyRequest) (
 		}, nil
 	}
 
-	log.Printf("✅ Deleted item with personId: %s, nodeId: %s", personId, nodeId)
+	log.Printf("✅ Deleted item with storyId: %s, nodeId: %s", storyId, nodeId)
 
 	return events.APIGatewayProxyResponse{
 		StatusCode: 200,

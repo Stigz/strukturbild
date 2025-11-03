@@ -86,13 +86,13 @@ type StoryFull struct {
 // Internal representations used for DynamoDB marshaling ----------------------
 
 type storyRecord struct {
-	PersonID string `dynamodbav:"personId"`
+	StoryKey string `dynamodbav:"storyId"`
 	ID       string `dynamodbav:"id"`
 	Story
 }
 
 type paragraphRecord struct {
-	PersonID    string     `dynamodbav:"personId"`
+	StoryKey    string     `dynamodbav:"storyId"`
 	ID          string     `dynamodbav:"id"`
 	ParagraphID string     `dynamodbav:"paragraphId"`
 	StoryID     string     `dynamodbav:"storyId"`
@@ -105,7 +105,7 @@ type paragraphRecord struct {
 }
 
 type detailRecord struct {
-	PersonID     string `dynamodbav:"personId"`
+	StoryKey     string `dynamodbav:"storyId"`
 	ID           string `dynamodbav:"id"`
 	DetailID     string `dynamodbav:"detailId"`
 	StoryID      string `dynamodbav:"storyId"`
@@ -137,7 +137,7 @@ func (s *StoryService) HandleCreateStory(ctx context.Context, req events.APIGate
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
 	record := storyRecord{
-		PersonID: fmt.Sprintf("STORY#%s", storyID),
+		StoryKey: fmt.Sprintf("STORY#%s", storyID),
 		ID:       fmt.Sprintf("STORY#%s", storyID),
 		Story: Story{
 			StoryID:   storyID,
@@ -184,7 +184,7 @@ func (s *StoryService) HandleCreateParagraph(ctx context.Context, req events.API
 	paragraphID := fmt.Sprintf("para-%s", uuid.New().String())
 	now := time.Now().UTC().Format(time.RFC3339)
 	record := paragraphRecord{
-		PersonID:    fmt.Sprintf("STORY#%s", storyID),
+		StoryKey:    fmt.Sprintf("STORY#%s", storyID),
 		ID:          paragraphSortKey(payload.Index, paragraphID),
 		ParagraphID: paragraphID,
 		StoryID:     storyID,
@@ -254,7 +254,7 @@ func (s *StoryService) HandleUpdateParagraph(ctx context.Context, req events.API
 	existing.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 	newID := paragraphSortKey(existing.Index, existing.ParagraphID)
 	newRecord := paragraphRecord{
-		PersonID:    fmt.Sprintf("STORY#%s", existing.StoryID),
+		StoryKey:    fmt.Sprintf("STORY#%s", existing.StoryID),
 		ID:          newID,
 		ParagraphID: existing.ParagraphID,
 		StoryID:     existing.StoryID,
@@ -280,8 +280,8 @@ func (s *StoryService) HandleUpdateParagraph(ctx context.Context, req events.API
 		_, _ = s.dynamo.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 			TableName: &s.tableName,
 			Key: map[string]types.AttributeValue{
-				"personId": &types.AttributeValueMemberS{Value: fmt.Sprintf("STORY#%s", existing.StoryID)},
-				"id":       &types.AttributeValueMemberS{Value: existing.ID},
+				"storyId": &types.AttributeValueMemberS{Value: fmt.Sprintf("STORY#%s", existing.StoryID)},
+				"id":      &types.AttributeValueMemberS{Value: existing.ID},
 			},
 		})
 	}
@@ -315,7 +315,7 @@ func (s *StoryService) HandleCreateDetail(ctx context.Context, req events.APIGat
 	}
 	detailID := fmt.Sprintf("det-%s", uuid.New().String())
 	record := detailRecord{
-		PersonID:     fmt.Sprintf("STORY#%s", payload.StoryID),
+		StoryKey:     fmt.Sprintf("STORY#%s", payload.StoryID),
 		ID:           fmt.Sprintf("DET#%s#%s", paragraphID, detailID),
 		DetailID:     detailID,
 		StoryID:      payload.StoryID,
@@ -421,7 +421,7 @@ func (s *StoryService) HandleImportStory(ctx context.Context, req events.APIGate
 		paragraphNodeMap = existingStory.ParagraphNodeMap
 	}
 	storyRecord := storyRecord{
-		PersonID: fmt.Sprintf("STORY#%s", storyID),
+		StoryKey: fmt.Sprintf("STORY#%s", storyID),
 		ID:       fmt.Sprintf("STORY#%s", storyID),
 		Story: Story{
 			StoryID:          storyID,
@@ -448,8 +448,8 @@ func (s *StoryService) HandleImportStory(ctx context.Context, req events.APIGate
 		_, _ = s.dynamo.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 			TableName: &s.tableName,
 			Key: map[string]types.AttributeValue{
-				"personId": &types.AttributeValueMemberS{Value: fmt.Sprintf("STORY#%s", storyID)},
-				"id":       &types.AttributeValueMemberS{Value: fmt.Sprintf("DET#%s#%s", detail.ParagraphID, detail.DetailID)},
+				"storyId": &types.AttributeValueMemberS{Value: fmt.Sprintf("STORY#%s", storyID)},
+				"id":      &types.AttributeValueMemberS{Value: fmt.Sprintf("DET#%s#%s", detail.ParagraphID, detail.DetailID)},
 			},
 		})
 	}
@@ -457,8 +457,8 @@ func (s *StoryService) HandleImportStory(ctx context.Context, req events.APIGate
 		_, _ = s.dynamo.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 			TableName: &s.tableName,
 			Key: map[string]types.AttributeValue{
-				"personId": &types.AttributeValueMemberS{Value: fmt.Sprintf("STORY#%s", storyID)},
-				"id":       &types.AttributeValueMemberS{Value: paragraphSortKey(paragraph.Index, paragraph.ParagraphID)},
+				"storyId": &types.AttributeValueMemberS{Value: fmt.Sprintf("STORY#%s", storyID)},
+				"id":      &types.AttributeValueMemberS{Value: paragraphSortKey(paragraph.Index, paragraph.ParagraphID)},
 			},
 		})
 	}
@@ -475,7 +475,7 @@ func (s *StoryService) HandleImportStory(ctx context.Context, req events.APIGate
 			pid = fmt.Sprintf("para-%s", uuid.New().String())
 		}
 		record := paragraphRecord{
-			PersonID:    fmt.Sprintf("STORY#%s", storyID),
+			StoryKey:    fmt.Sprintf("STORY#%s", storyID),
 			ParagraphID: pid,
 			StoryID:     storyID,
 			Index:       p.Index,
@@ -515,7 +515,7 @@ func (s *StoryService) HandleImportStory(ctx context.Context, req events.APIGate
 		}
 		detailID := fmt.Sprintf("det-%s", uuid.New().String())
 		record := detailRecord{
-			PersonID:     fmt.Sprintf("STORY#%s", storyID),
+			StoryKey:     fmt.Sprintf("STORY#%s", storyID),
 			ID:           fmt.Sprintf("DET#%s#%s", paraRecord.ParagraphID, detailID),
 			DetailID:     detailID,
 			StoryID:      storyID,
@@ -562,10 +562,10 @@ func (s *StoryService) getParagraph(ctx context.Context, storyID, paragraphID st
 	filter := "paragraphId = :paragraphId"
 	result, err := s.dynamo.Query(ctx, &dynamodb.QueryInput{
 		TableName:              &s.tableName,
-		KeyConditionExpression: awsString("personId = :pid"),
+		KeyConditionExpression: awsString("storyId = :sid"),
 		FilterExpression:       &filter,
 		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":pid":         &types.AttributeValueMemberS{Value: pk},
+			":sid":         &types.AttributeValueMemberS{Value: pk},
 			":paragraphId": &types.AttributeValueMemberS{Value: paragraphID},
 		},
 	})
@@ -586,9 +586,9 @@ func (s *StoryService) fetchStoryBundle(ctx context.Context, storyID string) (St
 	pk := fmt.Sprintf("STORY#%s", storyID)
 	result, err := s.dynamo.Query(ctx, &dynamodb.QueryInput{
 		TableName:              &s.tableName,
-		KeyConditionExpression: awsString("personId = :pid"),
+		KeyConditionExpression: awsString("storyId = :sid"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":pid": &types.AttributeValueMemberS{Value: pk},
+			":sid": &types.AttributeValueMemberS{Value: pk},
 		},
 	})
 	if err != nil {

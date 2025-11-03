@@ -1,21 +1,20 @@
 {
-  "personId": "story-rychenberg",
   "storyId": "story-rychenberg",
   "nodes": [
-    { "id": "n1", "label": "Leitungswegfall", "type": "beschäftigung", "color": "yellow", "x": 50, "y": 50, "personId": "story-rychenberg" },
-    { "id": "n2", "label": "Soziokratie", "type": "prozess", "color": "blue", "x": 250, "y": 50, "personId": "story-rychenberg" },
-    { "id": "n3", "label": "Kreisstruktur", "type": "prozess", "color": "blue", "x": 250, "y": 160, "personId": "story-rychenberg" },
-    { "id": "n4", "label": "Konsent-Ablauf", "type": "prozess", "color": "blue", "x": 250, "y": 270, "personId": "story-rychenberg" },
-    { "id": "n5", "label": "Verbindliche Mitwirkung", "type": "ergebnis", "color": "green", "x": 470, "y": 160, "personId": "story-rychenberg" },
-    { "id": "n6", "label": "Mitläufer/Leistungsträger", "type": "schwierigkeit", "color": "red", "x": 470, "y": 270, "personId": "story-rychenberg" },
-    { "id": "n7", "label": "Onboarding", "type": "praxis", "color": "purple", "x": 470, "y": 50, "personId": "story-rychenberg" }
+    { "id": "n1", "label": "Leitungswegfall", "type": "beschäftigung", "color": "yellow", "x": 50, "y": 50 },
+    { "id": "n2", "label": "Soziokratie", "type": "prozess", "color": "blue", "x": 250, "y": 50 },
+    { "id": "n3", "label": "Kreisstruktur", "type": "prozess", "color": "blue", "x": 250, "y": 160 },
+    { "id": "n4", "label": "Konsent-Ablauf", "type": "prozess", "color": "blue", "x": 250, "y": 270 },
+    { "id": "n5", "label": "Verbindliche Mitwirkung", "type": "ergebnis", "color": "green", "x": 470, "y": 160 },
+    { "id": "n6", "label": "Mitläufer/Leistungsträger", "type": "schwierigkeit", "color": "red", "x": 470, "y": 270 },
+    { "id": "n7", "label": "Onboarding", "type": "praxis", "color": "purple", "x": 470, "y": 50 }
   ],
   "edges": [
-    { "from": "n1", "to": "n7", "label": "macht nötig", "personId": "story-rychenberg" },
-    { "from": "n2", "to": "n4", "label": "etabliert", "personId": "story-rychenberg" },
-    { "from": "n1", "to": "n2", "label": "Stresstest für", "personId": "story-rychenberg" },
-    { "from": "n4", "to": "n6", "label": "verhindert", "personId": "story-rychenberg" },
-    { "from": "n2", "to": "n3", "label": "etabliert", "personId": "story-rychenberg" },
-    { "from": "n4", "to": "n5", "label": "sichert", "personId": "story-rychenberg" }
+    { "from": "n1", "to": "n7", "label": "macht nötig" },
+    { "from": "n2", "to": "n4", "label": "etabliert" },
+    { "from": "n1", "to": "n2", "label": "Stresstest für" },
+    { "from": "n4", "to": "n6", "label": "verhindert" },
+    { "from": "n2", "to": "n3", "label": "etabliert" },
+    { "from": "n4", "to": "n5", "label": "sichert" }
   ]
 }

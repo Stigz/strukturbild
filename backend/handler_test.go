@@ -12,14 +12,13 @@ import (
 func TestHandler(t *testing.T) {
 	setupTestServices()
 	testPayload := Strukturbild{
-		ID:       "test123",
-		PersonID: "testperson",
+		ID:      "test123",
+		StoryID: "testperson",
 		Nodes: []Node{{
-			ID:       "1",
-			Label:    "A",
-			X:        0,
-			Y:        0,
-			PersonID: "testperson",
+			ID:    "1",
+			Label: "A",
+			X:     0,
+			Y:     0,
 		}},
 		Edges: []Edge{{From: "1", To: "1", Label: "loop"}},
 	}
@@ -41,14 +40,13 @@ func TestGetHandler(t *testing.T) {
 	setupTestServices()
 	testID := "gettest123"
 	testPayload := Strukturbild{
-		ID:       testID,
-		PersonID: testID,
+		ID:      testID,
+		StoryID: testID,
 		Nodes: []Node{{
-			ID:       "1",
-			Label:    "Node1",
-			X:        10,
-			Y:        20,
-			PersonID: "testperson",
+			ID:    "1",
+			Label: "Node1",
+			X:     10,
+			Y:     20,
 		}},
 		Edges: []Edge{{From: "1", To: "1", Label: "self"}},
 	}
@@ -81,7 +79,7 @@ func TestGetHandler(t *testing.T) {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
 
-	if returned.PersonID != testID {
+	if returned.StoryID != testID {
 		t.Errorf("Unexpected data: %+v", returned)
 	}
 }
@@ -92,13 +90,12 @@ func TestGetHandlerIncludesStoryBundle(t *testing.T) {
 	storyID := "story-bundle-test"
 
 	sbPayload := Strukturbild{
-		PersonID: storyID,
+		StoryID: storyID,
 		Nodes: []Node{{
-			ID:       "node-1",
-			Label:    "Node",
-			X:        0,
-			Y:        0,
-			PersonID: storyID,
+			ID:    "node-1",
+			Label: "Node",
+			X:     0,
+			Y:     0,
 		}},
 	}
 	body, _ := json.Marshal(sbPayload)
