@@ -113,6 +113,10 @@ html, body {
 }
 #inspector .actions button:hover { background: #f3f3f3; }
 
+/* Inspector visibility controlled via .hidden class */
+#inspector { display: none; }
+#inspector:not(.hidden) { display: block; }
+
 /* Make room for side panel when visible */
 #cy.has-panel { margin-right: 340px; }
 
@@ -146,7 +150,6 @@ body.story-mode {
 
 body.story-mode #top-bar,
 body.story-mode #cy,
-body.story-mode #inspector,
 body.story-mode #status {
   display: none !important;
 }

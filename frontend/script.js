@@ -108,6 +108,94 @@ async function fetchStoryList() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  // --- Ensure the inline node/edge editor exists (bottom-left) ---
+  (function ensureInspectorUI() {
+    // Inject minimal styles once
+    if (!document.getElementById('inspector-inline-style')) {
+      const style = document.createElement('style');
+      style.id = 'inspector-inline-style';
+      style.textContent = `
+        #inspector { position: fixed; left: 12px; bottom: 12px; width: 340px; max-height: 44vh;
+          overflow: auto; background: rgba(255,255,255,0.98); border: 1px solid rgba(0,0,0,0.1);
+          border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,0.15); padding: 10px; z-index: 2000; }
+        #inspector.hidden { display: none; }
+        #inspector h4 { margin: 0 0 8px 0; font-size: 13px; color: #111; }
+        #inspector small { color: #555; }
+        #inspector form { display: grid; grid-template-columns: 1fr; gap: 8px; }
+        #inspector label { font-size: 12px; color: #444; }
+        #inspector input[type="text"],
+        #inspector input[type="date"],
+        #inspector textarea,
+        #inspector select { width: 100%; font-size: 12px; padding: 6px 8px; border-radius: 6px;
+          border: 1px solid rgba(0,0,0,0.2); box-sizing: border-box; }
+        #inspector textarea { min-height: 70px; resize: vertical; }
+        #inspector .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        #inspector .actions { display: flex; gap: 8px; justify-content: flex-end; }
+        #inspector button { font-size: 12px; padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.2); cursor: pointer; }
+        #inspector button.primary { background: #2563eb; color: #fff; border-color: #1d4ed8; }
+        #inspector button.ghosty { background: #f8f9fb; }
+      `;
+      document.head.appendChild(style);
+    }
+
+    // Inject panel markup if missing
+    if (!document.getElementById('inspector')) {
+      const panel = document.createElement('div');
+      panel.id = 'inspector';
+      panel.className = 'hidden';
+      panel.innerHTML = `
+        <h4>Editor <small id="inspectorSelectedType"></small></h4>
+        <form id="inspectorForm" autocomplete="off">
+          <div>
+            <label for="fieldLabel">Label</label>
+            <input id="fieldLabel" type="text" placeholder="Label">
+          </div>
+          <div class="row">
+            <div>
+              <label for="fieldType">Type</label>
+              <select id="fieldType">
+                <option value=""></option>
+                <option value="prozess">prozess</option>
+                <option value="praxis">praxis</option>
+                <option value="ergebnis">ergebnis</option>
+                <option value="schwierigkeit">schwierigkeit</option>
+                <option value="beschäftigung">beschäftigung</option>
+              </select>
+            </div>
+            <div>
+              <label for="fieldTime">Date</label>
+              <input id="fieldTime" type="date" />
+            </div>
+          </div>
+          <div class="row">
+            <div>
+              <label for="fieldColor">Color</label>
+              <input id="fieldColor" type="text" placeholder="#hex or name">
+            </div>
+            <div>
+              <label for="fieldDetail">Detail</label>
+              <input id="fieldDetail" type="text" placeholder="Short note">
+            </div>
+          </div>
+          <div class="actions">
+            <button id="cancelInspectorBtn" type="button" class="ghosty">Close</button>
+            <button id="saveInspectorBtn" type="button" class="primary">Save</button>
+          </div>
+        </form>
+      `;
+      document.body.appendChild(panel);
+
+      // Optional: Cmd/Ctrl+Enter to save
+      const form = panel.querySelector('#inspectorForm');
+      form.addEventListener('keydown', (ev) => {
+        if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') {
+          ev.preventDefault();
+          try { saveInspector(); } catch (e) {}
+        }
+      });
+    }
+  })();
+  // --- end ensure inspector ---
   const storyRoot = document.getElementById('story-root');
   const placeholderHtml = '<p style="color:#444">Wähle eine Story in der Liste, um sie zu öffnen.</p>';
 
@@ -685,6 +773,9 @@ document.addEventListener("DOMContentLoaded", () => {
       color: fieldColor.value.trim(),
       detail: fieldDetail.value.trim()
     });
+    if (isNode) {
+  inspectorSelection.data('hasXY', true);
+}
     try {
       await fetch(`${API_BASE_URL}/submit`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     } catch (e) { console.error('Save inspector failed', e); }
@@ -712,6 +803,8 @@ document.addEventListener("DOMContentLoaded", () => {
       const i = lastNodes.findIndex(n => n.id === ns.id);
       if (i >= 0) lastNodes[i] = { ...lastNodes[i], ...ns };
     });
+    // Mark saved XY locally so subsequent layouts don't move them
+cy.nodes().forEach(n => n.data('hasXY', true));
     fetch(`${API_BASE_URL}/submit`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ storyId, nodes, edges: [] })
@@ -817,11 +910,39 @@ document.addEventListener("DOMContentLoaded", () => {
         if (cy) {
           const t = Math.max(0, Math.min(1, layoutStrength/100));
           const spacing = 0.8 + t * 0.6; // 0.8..1.4
-          if (currentFilter === 'all') {
-            layoutCompass(spacing);
+
+          // Determine saved positions from the source dataset (lastNodes), not from cy data
+          const freeIdSet = new Set(
+            (lastNodes || [])
+              .filter(n => !(Number.isFinite(Number(n.x)) && Number.isFinite(Number(n.y))))
+              .map(n => n.id)
+          );
+          const total = cy.nodes().length;
+
+          if (freeIdSet.size === total || total === 0) {
+            // No saved positions at all: use deterministic layouts
+            if (currentFilter === 'all') {
+              layoutCompass(spacing);
+            } else {
+              layoutSingleBucket(toCanonicalType(currentFilter), spacing);
+            }
+          } else if (freeIdSet.size > 0) {
+            // Some nodes lack positions: lay out only those without saved XY
+            const freeNodes = cy.nodes().filter(n => freeIdSet.has(n.id()));
+            freeNodes.layout({ name: 'grid', rows: undefined }).run();
+            cy.fit();
           } else {
-            layoutSingleBucket(toCanonicalType(currentFilter), spacing);
+            // All nodes have saved positions: do not move anything
+            // Ensure positions are set from source once in case the add path was ignored
+            cy.nodes().forEach(n => {
+              const src = (lastNodes || []).find(nn => nn.id === n.id());
+              if (src && Number.isFinite(Number(src.x)) && Number.isFinite(Number(src.y))) {
+                n.position({ x: Number(src.x), y: Number(src.y) });
+              }
+            });
+            cy.fit();
           }
+
           needsLayout = false;
         }
 
@@ -954,6 +1075,65 @@ document.addEventListener("DOMContentLoaded", () => {
         elements: cyElements(nodes, edges)
       });
 
+      // === Inspector show/hide wiring ===
+(function () {
+  var inspector = document.getElementById('inspector');
+  var cyContainer = document.getElementById('cy');
+  var closeBtn = document.getElementById('inspector-close');
+
+  function openInspector(node) {
+    if (!inspector) return;
+    inspector.classList.remove('hidden');
+    if (cyContainer) cyContainer.classList.add('has-panel');
+
+    // populate fields if present
+    var idEl = document.getElementById('inspector-id');
+    var labelEl = document.getElementById('inspector-label');
+    var typeEl = document.getElementById('inspector-type');
+    var colorEl = document.getElementById('inspector-color');
+
+    if (node && node.id) {
+      var data = node.data ? node.data() : {};
+      if (idEl) idEl.value = data.id || '';
+      if (labelEl) labelEl.value = data.label || '';
+      if (typeEl) typeEl.value = data.type || '';
+      if (colorEl) colorEl.value = data.color || '';
+    }
+  }
+
+  function closeInspector() {
+    if (!inspector) return;
+    inspector.classList.add('hidden');
+    if (cyContainer) cyContainer.classList.remove('has-panel');
+  }
+
+  // Show on node selection
+  cy.on('select', 'node', function (evt) {
+    openInspector(evt.target);
+  });
+
+  // Hide when no nodes remain selected
+  cy.on('unselect', 'node', function () {
+    if (cy.$('node:selected').length === 0) closeInspector();
+  });
+
+  // Click background closes inspector
+  cy.on('tap', function (evt) {
+    if (evt.target === cy) {
+      cy.$(':selected').unselect();
+      closeInspector();
+    }
+  });
+
+  // Close button
+  if (closeBtn) {
+    closeBtn.addEventListener('click', function () {
+      cy.$(':selected').unselect();
+      closeInspector();
+    });
+  }
+})();
+
       // --- Paragraph focus styling + handlers (MVP) ------------------------------
 (function attachParagraphFocus() {
   if (!cy) return;
@@ -1060,7 +1240,7 @@ function applyParagraphFocus(nodeIds) {
         reRender();
       });
 
-      cy.on('select', 'node,edge', (evt) => { openInspector(evt.target); });
+      cy.on('select', 'node', (evt) => { openInspector(evt.target); });
       cy.on('unselect', 'node,edge', () => {
         if (cy.$('node:selected,edge:selected').length === 0) closeInspector();
       });
@@ -1085,7 +1265,12 @@ function applyParagraphFocus(nodeIds) {
             const newNode = cy.$id(id);
             newNode.select();
             openInspector(newNode);
+            newNode.data('hasXY', true);
             addNodeMode = false; addNodeBtn?.setAttribute('data-active','false');
+          } else {
+            // background click: close editor and clear any selection
+            closeInspector();
+            cy.$('node,edge').unselect();
           }
         }
       });
@@ -1108,12 +1293,7 @@ function applyParagraphFocus(nodeIds) {
           lastContainerH = h;
         }
       }
-
-      // Only auto-layout when we truly have no positions
-      const hasPositions = (nodes || []).some(n => typeof n.x === 'number' && typeof n.y === 'number');
-      if (!hasPositions) {
-        cy.layout({ name: 'cose' }).run();
-      }
+      // (auto-layout for unsaved positions is now handled in reRender)
     }
     window.cy = cy;
   }
@@ -1122,10 +1302,29 @@ function applyParagraphFocus(nodeIds) {
     const cyNodes = (nodes || []).map(n => {
       const canon = toCanonicalType(n.type);
       const color = (n.color && n.color.trim()) ? n.color : (TYPE_COLORS[canon] || '#666');
-      return {
-        data: { id: n.id, label: n.label, type: n.type || '', time: n.time || '', color, detail: n.detail || '' },
-        position: { x: n.x || 0, y: n.y || 0 }
+
+      // Coerce x/y to numbers (API may return them as strings)
+      const xNum = (n.x !== undefined && n.x !== null) ? Number(n.x) : NaN;
+      const yNum = (n.y !== undefined && n.y !== null) ? Number(n.y) : NaN;
+      const hasXY = Number.isFinite(xNum) && Number.isFinite(yNum);
+
+      const base = {
+        data: {
+          id: n.id,
+          label: n.label,
+          type: n.type || '',
+          time: n.time || '',
+          color,
+          detail: n.detail || ''
+        }
       };
+      if (hasXY) {
+        base.position = { x: xNum, y: yNum };
+        base.data.hasXY = true;   // saved XY, but still draggable
+      } else {
+        base.data.hasXY = false;  // no saved XY yet
+      }
+      return base;
     });
 
     const cyEdges = (edges || [])
