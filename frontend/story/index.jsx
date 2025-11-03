@@ -72,15 +72,16 @@
     }, [storyId]);
 
     // Apply focus to the graph whenever selection changes
-    useEffect(() => {
-      const mapping = (story && story.paragraphNodeMap) || window.__PARA_NODE_MAP__ || {};
-      const nodeList = focusedParaId ? (mapping?.[focusedParaId] || []) : null;
-      const payload = nodeList == null ? null : (Array.isArray(nodeList) ? nodeList : []);
-      const focusFn = window.applyParagraphFocus || window.__CY_FOCUS__;
-      if (typeof focusFn === "function") {
-        focusFn(payload);
-      }
-    }, [story, focusedParaId]);
+    
+      useEffect(() => {
+    const sid =
+      story?.storyId ?? story?.story?.storyId; // handle both shapes
+    const ids =
+      story?.paragraphNodeMap?.[focusedParaId] ??
+      window.__PARA_NODE_MAP__?.[sid]?.[focusedParaId] ??
+      [];
+    window.applyParagraphFocus?.(ids);
+  }, [focusedParaId, story]);
 
     // Render helpers
     function renderCitations(p) {

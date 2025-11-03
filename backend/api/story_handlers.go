@@ -388,10 +388,11 @@ func (s *StoryService) HandleImportStory(ctx context.Context, req events.APIGate
 	var payload struct {
 		Story      Story `json:"story"`
 		Paragraphs []struct {
-			Index     int        `json:"index"`
-			Title     string     `json:"title"`
-			BodyMd    string     `json:"bodyMd"`
-			Citations []Citation `json:"citations"`
+			ParagraphID string     `json:"paragraphId,omitempty"`
+			Index       int        `json:"index"`
+			Title       string     `json:"title"`
+			BodyMd      string     `json:"bodyMd"`
+			Citations   []Citation `json:"citations"`
 		} `json:"paragraphs"`
 		Details []struct {
 			ParagraphIndex int    `json:"paragraphIndex"`
@@ -469,9 +470,13 @@ func (s *StoryService) HandleImportStory(ctx context.Context, req events.APIGate
 		if err := validateCitations(p.Citations); err != nil {
 			return s.errorResponse(400, err.Error())
 		}
+		pid := strings.TrimSpace(p.ParagraphID)
+		if pid == "" {
+			pid = fmt.Sprintf("para-%s", uuid.New().String())
+		}
 		record := paragraphRecord{
 			PersonID:    fmt.Sprintf("STORY#%s", storyID),
-			ParagraphID: fmt.Sprintf("para-%s", uuid.New().String()),
+			ParagraphID: pid,
 			StoryID:     storyID,
 			Index:       p.Index,
 			Title:       strings.TrimSpace(p.Title),

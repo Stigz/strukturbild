@@ -1,5 +1,5 @@
 # Always run these targets (phony)
-.PHONY: all build zip deploy frontend url test clean stop-local run-local fetch-local-data import import-dir help-import validate validate-dir help-validate validate-verbose help-fix fix-person validate-refs fix-types fix-types-dir health import-story get-story-full submit-graph testdata-init smoke cleanup-smoke clean-testfiles
+.PHONY: all build zip deploy frontend url test clean stop-local run-local fetch-local-data import import-dir help-import validate validate-dir help-validate validate-verbose help-fix fix-person validate-refs fix-types fix-types-dir health import-story get-story-full submit-graph testdata-init smoke cleanup-smoke clean-testfiles import-rychenberg submit-graph-rychenberg smoke-rychenberg smoke-rychenberg-dev
 # --- Environment / Workspaces (dev/prod split) ---
 ENV ?= prod
 BUCKET_DEV  = strukturbild-frontend-dev-a9141bf9
@@ -280,6 +280,29 @@ submit-graph:
 	@API_URL="$$(cd terraform && terraform output -raw api_url 2>/dev/null || echo http://localhost:3000)"; \
 	echo "POST $$API_URL/submit  <= $(FILE)"; \
 	curl -sS -X POST "$$API_URL/submit" -H 'Content-Type: application/json' --data-binary @$(FILE) | sed -e 's/^/  /'
+
+# --- Rychenberg fixtures (uses files already in testfiles/) ---
+.PHONY: import-rychenberg
+import-rychenberg:
+	@$(MAKE) --no-print-directory import-story FILE=testfiles/story-rychenberg.json ENV=$(ENV)
+
+.PHONY: submit-graph-rychenberg
+submit-graph-rychenberg:
+	@$(MAKE) --no-print-directory submit-graph FILE=testfiles/graph-rychenberg.json ENV=$(ENV)
+
+# Dev-only smoke that exercises the Rychenberg files
+.PHONY: smoke-rychenberg
+smoke-rychenberg:
+	@if [ "$(ENV)" != "dev" ]; then echo "❌ smoke-rychenberg only allowed with ENV=dev. Run: make ENV=dev smoke-rychenberg"; exit 1; fi
+	@$(MAKE) --no-print-directory import-rychenberg ENV=$(ENV)
+	@$(MAKE) --no-print-directory get-story-full STORY=story-rychenberg ENV=$(ENV)
+	@$(MAKE) --no-print-directory submit-graph-rychenberg ENV=$(ENV)
+	@$(MAKE) --no-print-directory cleanup-smoke ENV=$(ENV) STORY=story-rychenberg
+	@echo "✅ Rychenberg smoke test finished (ENV=$(ENV))"
+
+.PHONY: smoke-rychenberg-dev
+smoke-rychenberg-dev: ENV=dev
+smoke-rychenberg-dev: smoke-rychenberg
 
 testdata-init:
 	@set -e

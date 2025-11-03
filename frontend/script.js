@@ -996,20 +996,16 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // 2) Helper to apply focus
-  function applyParagraphFocus(nodeIds) {
-    if (!window.cy) return;
-    const cyInstance = window.cy;
-
-    cyInstance.elements().style('opacity', 1);
-    if (!Array.isArray(nodeIds) || nodeIds.length === 0) {
-      return;
-    }
-
-    const focusSet = new Set(nodeIds);
-    cyInstance.elements().style('opacity', 0.5);
-    cyInstance.nodes().filter(n => focusSet.has(n.id())).style('opacity', 1);
-    cyInstance.edges().filter(e => focusSet.has(e.data('source')) || focusSet.has(e.data('target'))).style('opacity', 1);
-  }
+function applyParagraphFocus(nodeIds) {
+  if (!window.cy) return;
+  const cyInstance = window.cy;
+  cyInstance.elements().style('opacity', 1);   // reset every time
+  if (!Array.isArray(nodeIds) || nodeIds.length === 0) return;
+  const focusSet = new Set(nodeIds);
+  cyInstance.elements().style('opacity', 0.5);
+  cyInstance.nodes().filter(n => focusSet.has(n.id())).style('opacity', 1);
+  cyInstance.edges().filter(e => focusSet.has(e.data('source')) || focusSet.has(e.data('target'))).style('opacity', 1);
+}
   window.applyParagraphFocus = applyParagraphFocus;
 
   // 3) Bind once
