@@ -1,5 +1,5 @@
 # Always run these targets (phony)
-.PHONY: all build zip deploy frontend url test clean stop-local run-local fetch-local-data import import-dir help-import validate validate-dir help-validate validate-verbose help-fix fix-person validate-refs fix-types fix-types-dir
+.PHONY: all build zip deploy frontend url test clean stop-local run-local fetch-local-data import import-dir help-import validate validate-dir help-validate validate-verbose help-fix fix-person validate-refs fix-types fix-types-dir health import-story get-story-full submit-graph testdata-init smoke cleanup-smoke clean-testfiles
 # --- Environment / Workspaces (dev/prod split) ---
 ENV ?= prod
 BUCKET_DEV  = strukturbild-frontend-dev-a9141bf9
@@ -108,8 +108,10 @@ import:
 	@if [ -z "$(PERSON)" ] || [ -z "$(FILE)" ]; then \
 	  echo "Usage: make import PERSON=<id> FILE=<file.json>"; exit 1; \
 	fi
-	@echo "→ Importing $(FILE) for $(PERSON) -> $(API_URL)/submit"
-	@curl -sS -X POST "$(API_URL)/submit" \
+	$(call TF_SELECT_WORKSPACE,$(ENV))
+	@API_URL="$$(cd terraform && terraform output -raw api_url 2>/dev/null || echo http://localhost:3000)"; \
+	echo "→ Importing $(FILE) for $(PERSON) -> $$API_URL/submit"; \
+	curl -sS -X POST "$$API_URL/submit" \
 	  -H 'Content-Type: application/json' \
 	  --data-binary @$(FILE) | sed -e 's/^/  /'
 
@@ -117,9 +119,11 @@ import-dir:
 	@if [ -z "$(PERSON)" ] || [ -z "$(DIR)" ]; then \
 	  echo "Usage: make import-dir PERSON=<id> DIR=<dir>"; exit 1; \
 	fi
-	@for f in $(DIR)/*.json; do \
-	  echo "→ Importing $$f for $(PERSON) -> $(API_URL)/submit"; \
-	  curl -sS -X POST "$(API_URL)/submit" \
+	$(call TF_SELECT_WORKSPACE,$(ENV))
+	@API_URL="$$(cd terraform && terraform output -raw api_url 2>/dev/null || echo http://localhost:3000)"; \
+	for f in $(DIR)/*.json; do \
+	  echo "→ Importing $$f for $(PERSON) -> $$API_URL/submit"; \
+	  curl -sS -X POST "$$API_URL/submit" \
 	    -H 'Content-Type: application/json' \
 	    --data-binary @$$f | sed -e 's/^/  /'; \
 	done
@@ -242,3 +246,106 @@ fix-types-dir:
 # --- Convenience aliases for frontend deploy ---
 deploy-frontend-dev: frontend-dev
 deploy-frontend-prod: frontend-prod
+
+# --- Health & smoke tests (dev/prod aware; set ENV=dev to target dev) ---
+health:
+	$(call TF_SELECT_WORKSPACE,$(ENV))
+	@API_URL="$$(cd terraform && terraform output -raw api_url 2>/dev/null || echo http://localhost:3000)"; \
+	echo "GET $$API_URL/api/stories"; \
+	curl -sS -w "\nHTTP %{http_code}\n" "$$API_URL/api/stories" || true
+
+import-story:
+	@if [ -z "$(FILE)" ]; then \
+	  echo "Usage: make import-story FILE=<file.json>"; exit 1; \
+	fi
+	$(call TF_SELECT_WORKSPACE,$(ENV))
+	@API_URL="$$(cd terraform && terraform output -raw api_url 2>/dev/null || echo http://localhost:3000)"; \
+	echo "📚 Importing STORY from $(FILE) -> $$API_URL/api/stories/import"; \
+	curl -sS -X POST "$$API_URL/api/stories/import" -H 'Content-Type: application/json' --data-binary @$(FILE) | sed -e 's/^/  /'
+
+get-story-full:
+	@if [ -z "$(STORY)" ]; then \
+	  echo "Usage: make get-story-full STORY=<storyId>"; exit 1; \
+	fi
+	$(call TF_SELECT_WORKSPACE,$(ENV))
+	@API_URL="$$(cd terraform && terraform output -raw api_url 2>/dev/null || echo http://localhost:3000)"; \
+	echo "GET $$API_URL/api/stories/$(STORY)/full"; \
+	curl -sS "$$API_URL/api/stories/$(STORY)/full" | jq .
+
+submit-graph:
+	@if [ -z "$(FILE)" ]; then \
+	  echo "Usage: make submit-graph FILE=<file.json>"; exit 1; \
+	fi
+	$(call TF_SELECT_WORKSPACE,$(ENV))
+	@API_URL="$$(cd terraform && terraform output -raw api_url 2>/dev/null || echo http://localhost:3000)"; \
+	echo "POST $$API_URL/submit  <= $(FILE)"; \
+	curl -sS -X POST "$$API_URL/submit" -H 'Content-Type: application/json' --data-binary @$(FILE) | sed -e 's/^/  /'
+
+testdata-init:
+	@set -e
+	@mkdir -p testfiles
+	@echo "📝 Writing testfiles/story_import.json"
+	@printf '%s\n' '{"story":{"storyId":"story-demo","schoolId":"Rychenberg","title":"Demo Story (Import)"},"paragraphs":[{"index":1,"title":"Ausloeser","bodyMd":"Erster Abschnitt - warum etwas ins Rollen kam.","citations":[{"transcriptId":"Rychenberg_Evelyne","minutes":[2,5]}]},{"index":2,"title":"Umsetzung","bodyMd":"Wie das Team vorgeht.","citations":[{"transcriptId":"Rychenberg_Maja","minutes":[10]}]}],"details":[{"paragraphIndex":1,"kind":"quote","transcriptId":"Rychenberg_Evelyne","startMinute":2,"endMinute":5,"text":"Das war der Knackpunkt."},{"paragraphIndex":2,"kind":"quote","transcriptId":"Rychenberg_Maja","startMinute":10,"endMinute":11,"text":"So haben wir es geloest."}]}' > testfiles/story_import.json
+	@echo "📝 Writing testfiles/submit_graph.json"
+	@printf '%s\n' '{"personId":"story-demo","nodes":[{"id":"n1","label":"Schulentwicklungsziel X","type":"schulentwicklungsziel","detail":"Pilotprojekt","color":"#111827","x":120,"y":120,"personId":"story-demo","isNode":true},{"id":"n2","label":"Promotor: SL","type":"promotor","color":"#22c55e","x":120,"y":280,"personId":"story-demo","isNode":true}],"edges":[{"from":"n2","to":"n1","label":"unterstuetzt","type":"supports"}]}' > testfiles/submit_graph.json
+smoke: testdata-init
+	@if [ "$(ENV)" != "dev" ]; then echo "❌ smoke only allowed with ENV=dev. Run: make ENV=dev smoke"; exit 1; fi
+	@$(MAKE) --no-print-directory import-story FILE=testfiles/story_import.json ENV=$(ENV)
+	@$(MAKE) --no-print-directory get-story-full STORY=story-demo ENV=$(ENV)
+	@$(MAKE) --no-print-directory submit-graph FILE=testfiles/submit_graph.json ENV=$(ENV)
+	@$(MAKE) --no-print-directory cleanup-smoke ENV=$(ENV)
+	@$(MAKE) --no-print-directory clean-testfiles
+	@echo "✅ Smoke test finished (ENV=$(ENV))"
+
+.PHONY: smoke-dev
+smoke-dev: ENV=dev
+smoke-dev: smoke
+
+# Remove the graph nodes created by the smoke test and verify deletion
+.PHONY: cleanup-smoke
+cleanup-smoke:
+	@if [ "$(ENV)" != "dev" ]; then echo "❌ cleanup-smoke only allowed with ENV=dev. Run: make ENV=dev cleanup-smoke"; exit 1; fi
+	$(call TF_SELECT_WORKSPACE,$(ENV))
+	@API_URL="$$(cd terraform && terraform output -raw api_url 2>/dev/null || echo http://localhost:3000)"; \
+	STORY_ID="$${STORY:-story-demo}"; \
+	echo "🧽 Deleting test nodes via API (storyId=$$STORY_ID): n1, n2"; \
+	for node in n1 n2; do \
+	  code=$$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE "$$API_URL/struktur/$$STORY_ID/$$node"); \
+	  echo "  DEL $$node -> $$code"; \
+	done; \
+	echo "🗑  Purging ALL DynamoDB items for storyId=$$STORY_ID (graph + story bundle) — HARD-CODED DEV TABLE"; \
+	AWS_REGION="us-east-1"; \
+	TABLE_NAME="strukturbild_data_dev"; \
+	echo "   Using table=$$TABLE_NAME region=$$AWS_REGION"; \
+	for PK in "$$STORY_ID" "STORY#$$STORY_ID"; do \
+	  echo "→ Partition: $$PK"; \
+	  ids=$$(aws dynamodb query --region "$$AWS_REGION" --table-name "$$TABLE_NAME" --consistent-read \
+	         --key-condition-expression "personId = :pk" \
+	         --expression-attribute-values "{\":pk\":{\"S\":\"$$PK\"}}" \
+	         --projection-expression "#i" \
+	         --expression-attribute-names "{\"#i\":\"id\"}" \
+	       | jq -r ".Items[].id.S"); \
+	  for ID in $$ids; do \
+	    echo "   DEL $$PK / $$ID"; \
+	    aws dynamodb delete-item --region "$$AWS_REGION" --table-name "$$TABLE_NAME" \
+	      --key "{\"personId\":{\"S\":\"$$PK\"},\"id\":{\"S\":\"$$ID\"}}"; \
+	  done; \
+	done; \
+	echo "🔎 Verifying DynamoDB is empty for both partitions ..."; \
+	for PK in "$$STORY_ID" "STORY#$$STORY_ID"; do \
+	  COUNT=$$(aws dynamodb query --region "$$AWS_REGION" --table-name "$$TABLE_NAME" --consistent-read \
+	    --key-condition-expression "personId = :pk" \
+	    --expression-attribute-values "{\":pk\":{\"S\":\"$$PK\"}}" \
+	    --select "COUNT" --query "Count" --output text); \
+	  echo "   Remaining in $$PK: $$COUNT"; \
+	  if [ "$$COUNT" -ne 0 ]; then echo "❌ Not fully cleaned (partition $$PK)"; exit 1; fi; \
+	done; \
+	echo "✅ Full cleanup complete for $$STORY_ID"
+
+# Remove generated local test files and verify
+.PHONY: clean-testfiles
+clean-testfiles:
+	@rm -f testfiles/story_import.json testfiles/submit_graph.json
+	@test ! -f testfiles/story_import.json -a ! -f testfiles/submit_graph.json || { echo "❌ testfiles not removed"; exit 1; }
+	@rmdir testfiles >/dev/null 2>&1 || true
+	@echo "🧹 Removed local test files"
