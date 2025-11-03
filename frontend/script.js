@@ -280,25 +280,16 @@ document.addEventListener("DOMContentLoaded", () => {
   // In-memory dataset + UI state
   let lastNodes = [];
   let lastEdges = [];
-  let currentFilter = STORY_ID ? 'all' : 'schulentwicklungsziel'; // default depends on mode
+  let currentFilter = STORY_ID ? 'all' : 'prozess'; // default depends on mode
   let prevFilterBeforeExpand = null;           // remember filter while expanded
   let expandedNodeId = null;                   // node id if expanded (focus)
 
   // UX tuning
-  const DOUBLE_TAP_MS = 350; // two taps within this window = expand/collapse
-  let lastTapTime = 0;
-  let lastTapNodeId = null;
   const DEBUG_STATUS = false; // write #status only when true (reduces scroll flicker)
 
-  // === Taxonomy + colors ===
+  // === MVP Taxonomy + colors ===
   const TYPE_COLORS = {
-    'bedürfnis': '#a855f7',
-    'trigger': '#f59e0b',
-    'schulentwicklungsziel': '#111827',
-    'barriere': '#ef4444',
-    'promotor': '#22c55e',
-    'outcome': '#3b82f6',
-    // MVP taxonomy types
+    // MVP taxonomy only
     'prozess': '#2563eb',
     'praxis': '#7c3aed',
     'ergebnis': '#16a34a',
@@ -312,25 +303,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const raw = (t ?? '').toString().trim().toLowerCase();
     const ascii = stripDiacritics(raw);
     const ALIASES = {
-      // legacy -> new
-      'promoter': 'promotor',
-      'barrier': 'barriere',
-      'goal': 'outcome',
-      'event': 'trigger',
-      // taxonomy rename + plural
-      'entwicklungsinhalt': 'schulentwicklungsziel',
-      'schulentwicklungsziele': 'schulentwicklungsziel',
-      // MVP taxonomy aliases
+      // MVP taxonomy aliases + diacritic/typing variants only
       'prozess': 'prozess',
       'praxis': 'praxis',
       'ergebnis': 'ergebnis',
       'schwierigkeit': 'schwierigkeit',
       'beschaeftigung': 'beschäftigung',
       'beschaftigung': 'beschäftigung',
-      'beschäftigung': 'beschäftigung',
-      // diacritic/typing variants
-      'bedurfnis': 'bedürfnis',
-      'beduerfnis': 'bedürfnis'
+      'beschäftigung': 'beschäftigung'
     };
     return ALIASES[raw] || ALIASES[ascii] || raw;
   }
@@ -401,7 +381,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Deterministic compass layout with disjoint rectangles per sector
+  // MVP: deterministic compass layout with disjoint rectangles per sector
   function layoutCompass(spacing = 1.0) {
     if (!cy) return;
     const cont = document.getElementById('cy');
@@ -416,7 +396,6 @@ document.addEventListener("DOMContentLoaded", () => {
     // Fixed bands to guarantee no overlap between sectors
     const sideW = Math.round(W * 0.22);
     const topH = Math.round(H * 0.22);
-    const centerH = Math.round(H * 0.36); // reserved; not directly used
     const bottomH = Math.round(H * 0.22);
 
     // Rectangles per sector (disjoint by construction)
@@ -426,38 +405,31 @@ document.addEventListener("DOMContentLoaded", () => {
       y0: M + topH + gH,
       y1: H - M - bottomH - gH
     };
-    const topRect = { x0: centerRect.x0, x1: centerRect.x1, y0: M, y1: M + topH };
-    const bottomRect = { x0: centerRect.x0, x1: centerRect.x1, y0: H - M - bottomH, y1: H - M };
-    const leftRect = { x0: M, x1: M + sideW, y0: centerRect.y0, y1: centerRect.y1 };
-    const rightRect = { x0: W - M - sideW, x1: W - M, y0: centerRect.y0, y1: centerRect.y1 };
+    const topRect    = { x0: centerRect.x0, x1: centerRect.x1, y0: M,                  y1: M + topH };
+    const bottomRect = { x0: centerRect.x0, x1: centerRect.x1, y0: H - M - bottomH,    y1: H - M   };
+    const leftRect   = { x0: M,               x1: M + sideW,     y0: centerRect.y0,      y1: centerRect.y1 };
+    const rightRect  = { x0: W - M - sideW,   x1: W - M,         y0: centerRect.y0,      y1: centerRect.y1 };
 
-    // Split left lane vertically into Bedürfnis (upper) and Trigger (lower) proportional to counts
-    const bed = cy.nodes().filter(n => toCanonicalType(n.data('type')) === 'bedürfnis').toArray();
-    const trg = cy.nodes().filter(n => toCanonicalType(n.data('type')) === 'trigger').toArray();
-    const ziel = cy.nodes().filter(n => toCanonicalType(n.data('type')) === 'schulentwicklungsziel').toArray();
-    const pro = cy.nodes().filter(n => toCanonicalType(n.data('type')) === 'promotor').toArray();
-    const bar = cy.nodes().filter(n => toCanonicalType(n.data('type')) === 'barriere').toArray();
-    const out = cy.nodes().filter(n => toCanonicalType(n.data('type')) === 'outcome').toArray();
-
-    const totalLeft = (bed.length + trg.length) || 1;
-    const bedFrac = bed.length / totalLeft;
-    const bedRect = { x0: leftRect.x0, x1: leftRect.x1, y0: leftRect.y0, y1: Math.round(leftRect.y0 + (leftRect.y1 - leftRect.y0) * bedFrac) };
-    const trgRect = { x0: leftRect.x0, x1: leftRect.x1, y0: bedRect.y1, y1: leftRect.y1 };
+    // MVP buckets
+    const prozess       = cy.nodes().filter(n => toCanonicalType(n.data('type')) === 'prozess').toArray();
+    const praxis        = cy.nodes().filter(n => toCanonicalType(n.data('type')) === 'praxis').toArray();
+    const ergebnis      = cy.nodes().filter(n => toCanonicalType(n.data('type')) === 'ergebnis').toArray();
+    const schwierigkeit = cy.nodes().filter(n => toCanonicalType(n.data('type')) === 'schwierigkeit').toArray();
+    const beschaeft     = cy.nodes().filter(n => toCanonicalType(n.data('type')) === 'beschäftigung').toArray();
 
     cy.startBatch();
     const minGap = Math.max(12, Math.round(20 * spacing));
-    packIntoRect(ziel, centerRect, minGap);
-    packIntoRect(pro, topRect, minGap);
-    packIntoRect(bar, bottomRect, minGap);
-    packIntoRect(bed, bedRect, minGap);
-    packIntoRect(trg, trgRect, minGap);
-    packIntoRect(out, rightRect, minGap);
+    packIntoRect(prozess,       centerRect, minGap);
+    packIntoRect(praxis,        topRect,    minGap);
+    packIntoRect(schwierigkeit, bottomRect, minGap);
+    packIntoRect(beschaeft,     leftRect,   minGap);
+    packIntoRect(ergebnis,      rightRect,  minGap);
     cy.endBatch();
 
     cy.animate({ center: { eles: cy.nodes() } }, { duration: 120 });
   }
 
-  // Lay out only the nodes of the currently selected type into its sector
+  // Lay out only the nodes of the currently selected MVP type into its sector
   function layoutSingleBucket(filterType, spacing = 1.0) {
     if (!cy) return;
     const cont = document.getElementById('cy');
@@ -480,29 +452,30 @@ document.addEventListener("DOMContentLoaded", () => {
     const minGap = Math.max(12, Math.round(20 * spacing));
     let bucketNodes, rect;
     switch (filterType) {
-      case 'schulentwicklungsziel':
-        bucketNodes = cy.nodes().filter(n => toCanonicalType(n.data('type')) === 'schulentwicklungsziel').toArray();
-        rect = centerRect; break;
-      case 'bedürfnis':
-        bucketNodes = cy.nodes().filter(n => toCanonicalType(n.data('type')) === 'bedürfnis').toArray();
-        rect = { x0: leftRect.x0, x1: leftRect.x1, y0: leftRect.y0, y1: Math.round((leftRect.y0 + leftRect.y1)/2) };
+      case 'prozess':
+        bucketNodes = cy.nodes().filter(n => toCanonicalType(n.data('type')) === 'prozess').toArray();
+        rect = { x0: M + sideW + gW, x1: W - M - sideW - gW, y0: M + topH + gH, y1: H - M - bottomH - gH };
         break;
-      case 'trigger':
-        bucketNodes = cy.nodes().filter(n => toCanonicalType(n.data('type')) === 'trigger').toArray();
-        rect = { x0: leftRect.x0, x1: leftRect.x1, y0: Math.round((leftRect.y0 + leftRect.y1)/2), y1: leftRect.y1 };
+      case 'praxis':
+        bucketNodes = cy.nodes().filter(n => toCanonicalType(n.data('type')) === 'praxis').toArray();
+        rect = { x0: M + sideW + gW, x1: W - M - sideW - gW, y0: M, y1: M + topH };
         break;
-      case 'promotor':
-        bucketNodes = cy.nodes().filter(n => toCanonicalType(n.data('type')) === 'promotor').toArray();
-        rect = topRect; break;
-      case 'barriere':
-        bucketNodes = cy.nodes().filter(n => toCanonicalType(n.data('type')) === 'barriere').toArray();
-        rect = bottomRect; break;
-      case 'outcome':
-        bucketNodes = cy.nodes().filter(n => toCanonicalType(n.data('type')) === 'outcome').toArray();
-        rect = rightRect; break;
+      case 'schwierigkeit':
+        bucketNodes = cy.nodes().filter(n => toCanonicalType(n.data('type')) === 'schwierigkeit').toArray();
+        rect = { x0: M + sideW + gW, x1: W - M - sideW - gW, y0: H - M - bottomH, y1: H - M };
+        break;
+      case 'beschäftigung':
+        bucketNodes = cy.nodes().filter(n => toCanonicalType(n.data('type')) === 'beschäftigung').toArray();
+        rect = { x0: M, x1: M + sideW, y0: M + topH + gH, y1: H - M - bottomH - gH };
+        break;
+      case 'ergebnis':
+        bucketNodes = cy.nodes().filter(n => toCanonicalType(n.data('type')) === 'ergebnis').toArray();
+        rect = { x0: W - M - sideW, x1: W - M, y0: M + topH + gH, y1: H - M - bottomH - gH };
+        break;
       default:
         bucketNodes = cy.nodes().toArray();
-        rect = centerRect; break;
+        rect = { x0: M + sideW + gW, x1: W - M - sideW - gW, y0: M + topH + gH, y1: H - M - bottomH - gH };
+        break;
     }
 
     cy.startBatch();
@@ -760,13 +733,12 @@ document.addEventListener("DOMContentLoaded", () => {
       const x0 = 40, x1 = Math.max(200, width - 40);
       const typeY = (t) => {
         switch (toCanonicalType(t)) {
-          case 'bedürfnis': return 150;
-          case 'trigger': return 300;
-          case 'schulentwicklungsziel': return 450;
-          case 'barriere': return 600;
-          case 'promotor': return 750;
-          case 'outcome': return 900;
-          default: return 1050;
+          case 'praxis': return 150;
+          case 'beschäftigung': return 300;
+          case 'prozess': return 450;
+          case 'schwierigkeit': return 600;
+          case 'ergebnis': return 750;
+          default: return 900;
         }
       };
       nodes.forEach(n => {
@@ -1075,45 +1047,6 @@ function applyParagraphFocus(nodeIds) {
       };
       try { cy.contextMenus(defaults); } catch {}
 
-      // Double-tap expansion: two taps on the SAME node within DOUBLE_TAP_MS
-      cy.on('tap', 'node', (evt) => {
-        if (addNodeMode) return;
-        const id = evt.target.id();
-        const now = Date.now();
-        const isSame = (lastTapNodeId === id);
-        const isDouble = isSame && (now - lastTapTime) <= DOUBLE_TAP_MS;
-        lastTapNodeId = id;
-        lastTapTime = now;
-        if (!isDouble) return; // single tap just selects
-
-        const wasExpanded = !!expandedNodeId;
-        const collapsingSame = wasExpanded && expandedNodeId === id;
-        if (collapsingSame) {
-          // collapse: restore previous filter if any
-          expandedNodeId = null;
-          if (prevFilterBeforeExpand !== null) {
-            currentFilter = prevFilterBeforeExpand;
-            if (filterTypeSelect) filterTypeSelect.value = prevFilterBeforeExpand;
-            prevFilterBeforeExpand = null;
-          }
-        } else {
-          // expand: show the whole picture in Compass, don't hide anything
-          prevFilterBeforeExpand = currentFilter;
-          expandedNodeId = id;
-          currentFilter = 'all';
-          if (filterTypeSelect) filterTypeSelect.value = 'all';
-          if (layoutSelect) layoutSelect.value = 'compass';
-          needsLayout = true;
-        }
-        reRender();
-
-        if (expandedNodeId) {
-          const tgt = cy.$id(expandedNodeId);
-          if (tgt && !tgt.empty()) {
-            cy.animate({ center: { eles: tgt } }, { duration: 200 });
-          }
-        }
-      });
 
       // Optional "Clear Expand"
       clearExpandBtn?.addEventListener('click', () => {
@@ -1218,10 +1151,10 @@ function applyParagraphFocus(nodeIds) {
       const storyId = storyInput.value.trim();
       if (!storyId) { alert("Please provide a Story ID"); return; }
       await loadStoryData(storyId);
-      currentFilter = 'schulentwicklungsziel';
+      currentFilter = 'prozess';
       expandedNodeId = null;
       prevFilterBeforeExpand = null;
-      if (filterTypeSelect) filterTypeSelect.value = 'schulentwicklungsziel';
+      if (filterTypeSelect) filterTypeSelect.value = 'prozess';
       needsLayout = true;
       reRender();
     });
@@ -1283,10 +1216,10 @@ function applyParagraphFocus(nodeIds) {
       renderCytoscape([], []);
       lastNodes = [];
       lastEdges = [];
-      currentFilter = 'schulentwicklungsziel';
+      currentFilter = 'prozess';
       expandedNodeId = null;
       prevFilterBeforeExpand = null;
-      if (filterTypeSelect) filterTypeSelect.value = 'schulentwicklungsziel';
+      if (filterTypeSelect) filterTypeSelect.value = 'prozess';
       needsLayout = true;
       reRender();
     });
