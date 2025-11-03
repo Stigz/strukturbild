@@ -997,41 +997,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 2) Helper to apply focus
   function applyParagraphFocus(nodeIds) {
-    if (!cy || typeof cy.nodes !== 'function') return;
+    if (!window.cy) return;
+    const cyInstance = window.cy;
 
-    // Clear previous state
-    cy.nodes().removeClass('para-dim para-focus');
-    cy.edges().removeClass('para-dim');
-
-    // If nothing to focus, we're done
-    if (!Array.isArray(nodeIds) || nodeIds.length === 0) return;
+    cyInstance.elements().style('opacity', 1);
+    if (!Array.isArray(nodeIds) || nodeIds.length === 0) {
+      return;
+    }
 
     const focusSet = new Set(nodeIds);
-
-    // Nodes: mark focused vs dimmed
-    cy.nodes().forEach(n => {
-      if (focusSet.has(n.id())) n.addClass('para-focus');
-      else n.addClass('para-dim');
-    });
-
-    // Edges: dim edges that connect ONLY dimmed nodes
-    cy.edges().forEach(e => {
-      const s = e.data('source');
-      const t = e.data('target');
-      const sFocused = focusSet.has(s);
-      const tFocused = focusSet.has(t);
-      if (!sFocused && !tFocused) e.addClass('para-dim');
-    });
-
-    // Center roughly on the first focused node (simple MVP centering)
-    const first = nodeIds[0];
-    const centerOn = cy.$id(first);
-    if (centerOn && centerOn.nonempty && centerOn.nonempty()) {
-      cy.animate({ center: { eles: centerOn } }, { duration: 200 });
-    } else {
-      cy.animate({ center: { eles: cy.nodes() } }, { duration: 120 });
-    }
+    cyInstance.elements().style('opacity', 0.5);
+    cyInstance.nodes().filter(n => focusSet.has(n.id())).style('opacity', 1);
+    cyInstance.edges().filter(e => focusSet.has(e.data('source')) || focusSet.has(e.data('target'))).style('opacity', 1);
   }
+  window.applyParagraphFocus = applyParagraphFocus;
 
   // 3) Bind once
   if (!window._paraFocusBound) {
@@ -1051,36 +1030,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // --- Focus hook + event bridge (NEW) ---
       window.__CY_FOCUS__ = function(nodeIds) {
-        if (!cy || typeof cy.nodes !== 'function') return;
-        const ids = Array.isArray(nodeIds) ? nodeIds : [];
-        const chosen = new Set(ids);
-
-        cy.batch(() => {
-          cy.nodes().removeClass('para-dim para-focus');
-          cy.edges().removeClass('para-dim');
-
-          if (chosen.size === 0) return;
-
-          cy.nodes().forEach(n => {
-            if (!chosen.has(n.id())) n.addClass('para-dim');
-          });
-
-          cy.nodes().filter(n => chosen.has(n.id())).addClass('para-focus');
-
-          cy.edges().forEach(e => {
-            const s = e.source().id();
-            const t = e.target().id();
-            if (!(chosen.has(s) && chosen.has(t))) e.addClass('para-dim');
-          });
-
-          const target = cy.nodes().filter(n => chosen.has(n.id()))[0];
-          if (target) cy.animate({ center: { eles: target } }, { duration: 200 });
-        });
+        if (typeof window.applyParagraphFocus === 'function') {
+          window.applyParagraphFocus(Array.isArray(nodeIds) ? nodeIds : nodeIds);
+        }
       };
 
       document.addEventListener('story:focusParagraph', (e) => {
         const ids = e?.detail?.nodeIds || [];
-        if (typeof window.__CY_FOCUS__ === 'function') window.__CY_FOCUS__(ids);
+        if (typeof window.applyParagraphFocus === 'function') window.applyParagraphFocus(ids);
       });
 
       // Cache initial container size to avoid first-run resize oscillations
@@ -1223,6 +1180,7 @@ document.addEventListener("DOMContentLoaded", () => {
         cy.layout({ name: 'cose' }).run();
       }
     }
+    window.cy = cy;
   }
 
   function cyElements(nodes, edges) {

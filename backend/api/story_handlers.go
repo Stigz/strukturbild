@@ -42,11 +42,12 @@ var ErrStoryNotFound = errors.New("story not found")
 // Data model payloads --------------------------------------------------------
 
 type Story struct {
-	StoryID   string `json:"storyId"`
-	SchoolID  string `json:"schoolId"`
-	Title     string `json:"title"`
-	CreatedAt string `json:"createdAt,omitempty"`
-	UpdatedAt string `json:"updatedAt,omitempty"`
+	StoryID          string              `json:"storyId"`
+	SchoolID         string              `json:"schoolId"`
+	Title            string              `json:"title"`
+	CreatedAt        string              `json:"createdAt,omitempty"`
+	UpdatedAt        string              `json:"updatedAt,omitempty"`
+	ParagraphNodeMap map[string][]string `json:"paragraphNodeMap,omitempty" dynamodbav:"paragraphNodeMap,omitempty"`
 }
 
 type Citation struct {
@@ -414,15 +415,20 @@ func (s *StoryService) HandleImportStory(ctx context.Context, req events.APIGate
 	payload.Story.StoryID = storyID
 	now := time.Now().UTC().Format(time.RFC3339)
 	existingStory, existingParagraphs, existingDetails, _ := s.fetchStoryBundle(ctx, storyID)
+	paragraphNodeMap := payload.Story.ParagraphNodeMap
+	if paragraphNodeMap == nil && len(existingStory.ParagraphNodeMap) > 0 {
+		paragraphNodeMap = existingStory.ParagraphNodeMap
+	}
 	storyRecord := storyRecord{
 		PersonID: fmt.Sprintf("STORY#%s", storyID),
 		ID:       fmt.Sprintf("STORY#%s", storyID),
 		Story: Story{
-			StoryID:   storyID,
-			SchoolID:  payload.Story.SchoolID,
-			Title:     payload.Story.Title,
-			CreatedAt: chooseNonEmpty(existingStory.CreatedAt, now),
-			UpdatedAt: now,
+			StoryID:          storyID,
+			SchoolID:         payload.Story.SchoolID,
+			Title:            payload.Story.Title,
+			CreatedAt:        chooseNonEmpty(existingStory.CreatedAt, now),
+			UpdatedAt:        now,
+			ParagraphNodeMap: paragraphNodeMap,
 		},
 	}
 	item, err := attributevalue.MarshalMap(storyRecord)
