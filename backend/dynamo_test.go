@@ -51,7 +51,7 @@ func cloneAttr(attr types.AttributeValue) types.AttributeValue {
 }
 
 func (m *memoryDynamo) PutItem(ctx context.Context, input *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
-	pk := getStringAttr(input.Item["personId"])
+	pk := getStringAttr(input.Item["storyId"])
 	sk := getStringAttr(input.Item["id"])
 	if pk == "" || sk == "" {
 		return nil, fmt.Errorf("missing keys")
@@ -68,7 +68,7 @@ func (m *memoryDynamo) PutItem(ctx context.Context, input *dynamodb.PutItemInput
 }
 
 func (m *memoryDynamo) Query(ctx context.Context, input *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
-	pk := getStringAttr(input.ExpressionAttributeValues[":pid"])
+	pk := getStringAttr(input.ExpressionAttributeValues[":sid"])
 	m.mu.Lock()
 	bucket := m.items[pk]
 	m.mu.Unlock()
@@ -88,7 +88,7 @@ func (m *memoryDynamo) Query(ctx context.Context, input *dynamodb.QueryInput, op
 }
 
 func (m *memoryDynamo) DeleteItem(ctx context.Context, input *dynamodb.DeleteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error) {
-	pk := getStringAttr(input.Key["personId"])
+	pk := getStringAttr(input.Key["storyId"])
 	sk := getStringAttr(input.Key["id"])
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -102,7 +102,7 @@ func (m *memoryDynamo) DeleteItem(ctx context.Context, input *dynamodb.DeleteIte
 }
 
 func (m *memoryDynamo) GetItem(ctx context.Context, input *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
-	pk := getStringAttr(input.Key["personId"])
+	pk := getStringAttr(input.Key["storyId"])
 	sk := getStringAttr(input.Key["id"])
 	m.mu.Lock()
 	defer m.mu.Unlock()

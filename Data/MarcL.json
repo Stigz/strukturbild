@@ -1,10 +1,10 @@
 {
   "id": "marcl_batch_001",
-  "personId": "MarcL",
+  "storyId": "MarcL",
   "nodes": [
     {
       "id": "marcl_logbuch",
-      "personId": "MarcL",
+      "storyId": "MarcL",
       "label": "Logbuch als Unterrichtsform",
       "type": "entwicklungsinhalt",
       "color": "#111827",
@@ -12,7 +12,7 @@
     },
     {
       "id": "marcl_async_lernkontrollen",
-      "personId": "MarcL",
+      "storyId": "MarcL",
       "label": "Asynchrone Lernkontrollen („wenn bereit“)",
       "type": "entwicklungsinhalt",
       "color": "#111827",
@@ -20,7 +20,7 @@
     },
     {
       "id": "marcl_teamteaching",
-      "personId": "MarcL",
+      "storyId": "MarcL",
       "label": "Teamteaching (2–3 LP)",
       "type": "entwicklungsinhalt",
       "color": "#111827",
@@ -28,7 +28,7 @@
     },
     {
       "id": "marcl_gfk_na",
-      "personId": "MarcL",
+      "storyId": "MarcL",
       "label": "GFK & Neue Autorität",
       "type": "entwicklungsinhalt",
       "color": "#111827",
@@ -36,7 +36,7 @@
     },
     {
       "id": "marcl_lesefoerderung_2026",
-      "personId": "MarcL",
+      "storyId": "MarcL",
       "label": "Leseförderung (ab 2026)",
       "type": "entwicklungsinhalt",
       "color": "#111827",
@@ -44,7 +44,7 @@
     },
     {
       "id": "marcl_ki_integration",
-      "personId": "MarcL",
+      "storyId": "MarcL",
       "label": "KI: Einordnung/Einbettung",
       "type": "entwicklungsinhalt",
       "color": "#111827",
@@ -52,7 +52,7 @@
     },
     {
       "id": "marcl_beduerfnis_dosierung",
-      "personId": "MarcL",
+      "storyId": "MarcL",
       "label": "Bedürfnis: Dosierung (nicht überfrachten)",
       "type": "bedürfnis",
       "color": "#a855f7",
@@ -60,7 +60,7 @@
     },
     {
       "id": "marcl_beduerfnis_lernendenzentrierung",
-      "personId": "MarcL",
+      "storyId": "MarcL",
       "label": "Bedürfnis: Lernenden-Zentrierung/Kernarbeit",
       "type": "bedürfnis",
       "color": "#a855f7",
@@ -68,7 +68,7 @@
     },
     {
       "id": "marcl_beduerfnis_lesen",
-      "personId": "MarcL",
+      "storyId": "MarcL",
       "label": "Bedürfnis: Leseförderung",
       "type": "bedürfnis",
       "color": "#a855f7",
@@ -76,7 +76,7 @@
     },
     {
       "id": "marcl_trigger_montessori",
-      "personId": "MarcL",
+      "storyId": "MarcL",
       "label": "Trigger: Kontakt Montessori",
       "type": "trigger",
       "color": "#f59e0b",
@@ -84,7 +84,7 @@
     },
     {
       "id": "marcl_trigger_kanton",
-      "personId": "MarcL",
+      "storyId": "MarcL",
       "label": "Trigger: Kantonale Vorgaben/Impulse",
       "type": "trigger",
       "color": "#f59e0b",
@@ -92,7 +92,7 @@
     },
     {
       "id": "marcl_barriere_notenpflicht",
-      "personId": "MarcL",
+      "storyId": "MarcL",
       "label": "Barriere: Notenpflicht (4. Kl.)",
       "type": "barriere",
       "color": "#ef4444",
@@ -100,7 +100,7 @@
     },
     {
       "id": "marcl_barriere_ueberfrachtung",
-      "personId": "MarcL",
+      "storyId": "MarcL",
       "label": "Barriere: Themenüberfrachtung",
       "type": "barriere",
       "color": "#ef4444",
@@ -108,7 +108,7 @@
     },
     {
       "id": "marcl_barriere_if_ressource",
-      "personId": "MarcL",
+      "storyId": "MarcL",
       "label": "Barriere: IF 1:1 bindet Ressourcen",
       "type": "barriere",
       "color": "#ef4444",
@@ -116,7 +116,7 @@
     },
     {
       "id": "marcl_barriere_elternskepsis",
-      "personId": "MarcL",
+      "storyId": "MarcL",
       "label": "Barriere: Elternskepsis (zu Beginn)",
       "type": "barriere",
       "color": "#ef4444",
@@ -124,7 +124,7 @@
     },
     {
       "id": "marcl_promotor_marc",
-      "personId": "MarcL",
+      "storyId": "MarcL",
       "label": "Promotor (Fach): Marc",
       "type": "promotor",
       "color": "#22c55e",
@@ -132,7 +132,7 @@
     },
     {
       "id": "marcl_promotor_leitungsteam",
-      "personId": "MarcL",
+      "storyId": "MarcL",
       "label": "Promotor (Macht): Leitungsteam",
       "type": "promotor",
       "color": "#22c55e",
@@ -140,7 +140,7 @@
     },
     {
       "id": "marcl_promotor_stufenleitungen",
-      "personId": "MarcL",
+      "storyId": "MarcL",
       "label": "Promotor (Prozess): Stufenleitungen",
       "type": "promotor",
       "color": "#22c55e",
@@ -148,7 +148,7 @@
     },
     {
       "id": "marcl_promotor_kursleiter_gfk",
-      "personId": "MarcL",
+      "storyId": "MarcL",
       "label": "Promotor: Kursleiter GFK/NA",
       "type": "promotor",
       "color": "#22c55e",
@@ -156,7 +156,7 @@
     },
     {
       "id": "marcl_promotor_sl_konf",
-      "personId": "MarcL",
+      "storyId": "MarcL",
       "label": "Promotor: SL-Konferenz (2-wöchig)",
       "type": "promotor",
       "color": "#22c55e",
@@ -164,7 +164,7 @@
     },
     {
       "id": "marcl_outcome_selbststeuerung",
-      "personId": "MarcL",
+      "storyId": "MarcL",
       "label": "Outcome: Selbststeuerung",
       "type": "outcome",
       "color": "#3b82f6",
@@ -172,7 +172,7 @@
     },
     {
       "id": "marcl_outcome_taktstress",
-      "personId": "MarcL",
+      "storyId": "MarcL",
       "label": "Outcome: Taktstress ↓",
       "type": "outcome",
       "color": "#3b82f6",
@@ -180,7 +180,7 @@
     },
     {
       "id": "marcl_outcome_passung",
-      "personId": "MarcL",
+      "storyId": "MarcL",
       "label": "Outcome: faire Passung",
       "type": "outcome",
       "color": "#3b82f6",
@@ -188,7 +188,7 @@
     },
     {
       "id": "marcl_outcome_praesenz",
-      "personId": "MarcL",
+      "storyId": "MarcL",
       "label": "Outcome: Präsenz/Deeskalation",
       "type": "outcome",
       "color": "#3b82f6",
@@ -196,7 +196,7 @@
     },
     {
       "id": "marcl_outcome_sichtbarkeit",
-      "personId": "MarcL",
+      "storyId": "MarcL",
       "label": "Outcome: Sichtbarkeit (Klassenlektüren)",
       "type": "outcome",
       "color": "#3b82f6",
@@ -208,133 +208,133 @@
       "from": "marcl_trigger_montessori",
       "to": "marcl_logbuch",
       "label": "triggert",
-      "personId": "MarcL"
+      "storyId": "MarcL"
     },
     {
       "from": "marcl_trigger_kanton",
       "to": "marcl_lesefoerderung_2026",
       "label": "stösst an",
-      "personId": "MarcL"
+      "storyId": "MarcL"
     },
     {
       "from": "marcl_beduerfnis_dosierung",
       "to": "marcl_logbuch",
       "label": "erfordert Rahmen",
-      "personId": "MarcL"
+      "storyId": "MarcL"
     },
     {
       "from": "marcl_beduerfnis_lernendenzentrierung",
       "to": "marcl_logbuch",
       "label": "motiviert",
-      "personId": "MarcL"
+      "storyId": "MarcL"
     },
     {
       "from": "marcl_beduerfnis_lesen",
       "to": "marcl_lesefoerderung_2026",
       "label": "bedarf",
-      "personId": "MarcL"
+      "storyId": "MarcL"
     },
     {
       "from": "marcl_barriere_notenpflicht",
       "to": "marcl_async_lernkontrollen",
       "label": "erzwingt Anpassung",
-      "personId": "MarcL"
+      "storyId": "MarcL"
     },
     {
       "from": "marcl_barriere_ueberfrachtung",
       "to": "marcl_beduerfnis_dosierung",
       "label": "erzeugt Bedarf",
-      "personId": "MarcL"
+      "storyId": "MarcL"
     },
     {
       "from": "marcl_barriere_if_ressource",
       "to": "marcl_teamteaching",
       "label": "bindet Ressourcen",
-      "personId": "MarcL"
+      "storyId": "MarcL"
     },
     {
       "from": "marcl_barriere_elternskepsis",
       "to": "marcl_logbuch",
       "label": "anfangs Skepsis",
-      "personId": "MarcL"
+      "storyId": "MarcL"
     },
     {
       "from": "marcl_promotor_marc",
       "to": "marcl_logbuch",
       "label": "treibt",
-      "personId": "MarcL"
+      "storyId": "MarcL"
     },
     {
       "from": "marcl_promotor_marc",
       "to": "marcl_async_lernkontrollen",
       "label": "gestaltet",
-      "personId": "MarcL"
+      "storyId": "MarcL"
     },
     {
       "from": "marcl_promotor_marc",
       "to": "marcl_gfk_na",
       "label": "promotet",
-      "personId": "MarcL"
+      "storyId": "MarcL"
     },
     {
       "from": "marcl_promotor_leitungsteam",
       "to": "marcl_beduerfnis_dosierung",
       "label": "achtet auf",
-      "personId": "MarcL"
+      "storyId": "MarcL"
     },
     {
       "from": "marcl_promotor_leitungsteam",
       "to": "marcl_lesefoerderung_2026",
       "label": "priorisiert",
-      "personId": "MarcL"
+      "storyId": "MarcL"
     },
     {
       "from": "marcl_promotor_stufenleitungen",
       "to": "marcl_logbuch",
       "label": "koordiniert",
-      "personId": "MarcL"
+      "storyId": "MarcL"
     },
     {
       "from": "marcl_promotor_kursleiter_gfk",
       "to": "marcl_gfk_na",
       "label": "schult",
-      "personId": "MarcL"
+      "storyId": "MarcL"
     },
     {
       "from": "marcl_promotor_sl_konf",
       "to": "marcl_ki_integration",
       "label": "berät",
-      "personId": "MarcL"
+      "storyId": "MarcL"
     },
     {
       "from": "marcl_logbuch",
       "to": "marcl_outcome_selbststeuerung",
       "label": "führt zu",
-      "personId": "MarcL"
+      "storyId": "MarcL"
     },
     {
       "from": "marcl_logbuch",
       "to": "marcl_outcome_taktstress",
       "label": "senkt",
-      "personId": "MarcL"
+      "storyId": "MarcL"
     },
     {
       "from": "marcl_async_lernkontrollen",
       "to": "marcl_outcome_passung",
       "label": "führt zu",
-      "personId": "MarcL"
+      "storyId": "MarcL"
     },
     {
       "from": "marcl_gfk_na",
       "to": "marcl_outcome_praesenz",
       "label": "führt zu",
-      "personId": "MarcL"
+      "storyId": "MarcL"
     },
     {
       "from": "marcl_lesefoerderung_2026",
       "to": "marcl_outcome_sichtbarkeit",
       "label": "macht sichtbar",
-      "personId": "MarcL"
+      "storyId": "MarcL"
     }
   ]
 }

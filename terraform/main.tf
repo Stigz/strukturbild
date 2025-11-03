@@ -111,7 +111,7 @@ resource "aws_apigatewayv2_deployment" "deployment" {
 }
 resource "aws_apigatewayv2_route" "delete_route" {
   api_id             = aws_apigatewayv2_api.http_api.id
-  route_key          = "DELETE /struktur/{personId}/{nodeId}"
+  route_key          = "DELETE /struktur/{storyId}/{nodeId}"
   target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
   authorization_type = "NONE"
 }
@@ -191,11 +191,11 @@ resource "aws_s3_object" "frontend_files" {
 resource "aws_dynamodb_table" "struktur_data" {
   name             = local.env == "prod" ? "strukturbild_data" : "strukturbild_data_${local.env}"
   billing_mode     = "PAY_PER_REQUEST"
-  hash_key         = "personId"
+  hash_key         = "storyId"
   range_key        = "id"
 
   attribute {
-    name = "personId"
+    name = "storyId"
     type = "S"
   }
 
