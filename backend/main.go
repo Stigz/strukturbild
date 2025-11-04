@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	storyapi "strukturbild/api"
+
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -17,7 +19,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/google/uuid"
-	storyapi "strukturbild/api"
 )
 
 func normalizePath(p string) string {
@@ -197,17 +198,12 @@ func getHandler(ctx context.Context, request events.APIGatewayProxyRequest) (eve
 		}, nil
 	}
 
+	h := corsHeaders()
+	h["Content-Type"] = "application/json"
 	return events.APIGatewayProxyResponse{
 		StatusCode: 200,
-		Headers: map[string]string{
-			"Content-Type":                     "application/json",
-			"Access-Control-Allow-Origin":      "*",
-			"Access-Control-Allow-Headers":     "Content-Type",
-			"Access-Control-Allow-Methods":     "OPTIONS,GET,POST",
-			"Access-Control-Allow-Credentials": "true",
-			"Access-Control-Max-Age":           "86400",
-		},
-		Body: string(body),
+		Headers:    h,
+		Body:       string(body),
 	}, nil
 }
 
@@ -322,6 +318,14 @@ func lambdaHandler(ctx context.Context, req events.APIGatewayProxyRequest) (even
 	npath := normalizePath(path)
 	log.Printf("🪵 Method: %s, Path: %s", method, path)
 
+	if method == "OPTIONS" {
+		return events.APIGatewayProxyResponse{
+			StatusCode: 200,
+			Headers:    corsHeaders(),
+			Body:       "",
+		}, nil
+	}
+
 	switch {
 	case method == "POST" && npath == "/submit":
 		return handler(ctx, req)
@@ -343,12 +347,6 @@ func lambdaHandler(ctx context.Context, req events.APIGatewayProxyRequest) (even
 		}, nil
 	case strings.HasPrefix(npath, "/api/"):
 		return handleStoryRoutes(ctx, req, method, npath)
-	case method == "OPTIONS":
-		return events.APIGatewayProxyResponse{
-			StatusCode: 200,
-			Headers:    corsHeaders(),
-			Body:       "",
-		}, nil
 	default:
 		return events.APIGatewayProxyResponse{
 			StatusCode: 404,
