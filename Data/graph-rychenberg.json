@@ -1,20 +1,82 @@
 {
-  "storyId": "story-rychenberg",
+  "storyId": "story-anon",
   "nodes": [
-    { "id": "n1", "label": "Leitungswegfall", "type": "beschäftigung", "color": "yellow", "x": 50, "y": 50, "storyId": "story-rychenberg" },
-    { "id": "n2", "label": "Soziokratie", "type": "prozess", "color": "blue", "x": 250, "y": 50, "storyId": "story-rychenberg" },
-    { "id": "n3", "label": "Kreisstruktur", "type": "prozess", "color": "blue", "x": 250, "y": 160, "storyId": "story-rychenberg" },
-    { "id": "n4", "label": "Konsent-Ablauf", "type": "prozess", "color": "blue", "x": 250, "y": 270, "storyId": "story-rychenberg" },
-    { "id": "n5", "label": "Verbindliche Mitwirkung", "type": "ergebnis", "color": "green", "x": 470, "y": 160, "storyId": "story-rychenberg" },
-    { "id": "n6", "label": "Mitläufer/Leistungsträger", "type": "schwierigkeit", "color": "red", "x": 470, "y": 270, "storyId": "story-rychenberg" },
-    { "id": "n7", "label": "Onboarding", "type": "praxis", "color": "purple", "x": 470, "y": 50, "storyId": "story-rychenberg" }
+    { "id": "n1", "label": "Leitungswegfall", "type": "beschäftigung", "color": "yellow", "x": 50, "y": 50 },
+    { "id": "n2", "label": "Soziokratie", "type": "prozess", "color": "blue", "x": 250, "y": 50 },
+    { "id": "n3", "label": "Kreisstruktur", "type": "prozess", "color": "blue", "x": 250, "y": 160 },
+    { "id": "n4", "label": "Konsent-Ablauf", "type": "prozess", "color": "blue", "x": 250, "y": 270 },
+    { "id": "n5", "label": "Verbindliche Mitwirkung", "type": "ergebnis", "color": "green", "x": 470, "y": 160 },
+    { "id": "n6", "label": "Mitläufer/Leistungsträger", "type": "schwierigkeit", "color": "red", "x": 470, "y": 270 },
+    { "id": "n7", "label": "Onboarding", "type": "praxis", "color": "purple", "x": 470, "y": 50 },
+
+    { "id": "n8", "label": "Governance & Zuständigkeiten", "type": "struktur", "color": "blue", "x": 250, "y": 380 },
+    { "id": "n9", "label": "Domänenklärung", "type": "prozess", "color": "blue", "x": 470, "y": 380 },
+    { "id": "n10", "label": "Funktionendiagramm", "type": "struktur", "color": "blue", "x": 680, "y": 380 },
+    { "id": "n11", "label": "Ressourcensteuerung", "type": "prozess", "color": "blue", "x": 680, "y": 450 },
+
+    { "id": "n12", "label": "Budgetlogik", "type": "prozess", "color": "blue", "x": 250, "y": 490 },
+    { "id": "n13", "label": "Wirklogik", "type": "prinzip", "color": "green", "x": 470, "y": 490 },
+    { "id": "n14", "label": "Transparenz", "type": "prinzip", "color": "green", "x": 680, "y": 490 },
+    { "id": "n15", "label": "Vetoprävention", "type": "prinzip", "color": "green", "x": 470, "y": 550 },
+
+    { "id": "n16", "label": "Dienstagsfenster", "type": "praxis", "color": "purple", "x": 250, "y": 600 },
+    { "id": "n17", "label": "Delegiertensystem", "type": "struktur", "color": "blue", "x": 470, "y": 600 },
+    { "id": "n18", "label": "Arbeitszeitgefässe", "type": "praxis", "color": "purple", "x": 680, "y": 600 },
+    { "id": "n19", "label": "Abhängigkeitenreduktion", "type": "ergebnis", "color": "green", "x": 470, "y": 660 },
+
+    { "id": "n20", "label": "Schüler:innenbeteiligung", "type": "ergebnis", "color": "green", "x": 250, "y": 710 },
+    { "id": "n21", "label": "Rollenrotation", "type": "praxis", "color": "purple", "x": 470, "y": 710 },
+    { "id": "n22", "label": "Klassenrat", "type": "praxis", "color": "purple", "x": 680, "y": 710 },
+    { "id": "n23", "label": "Mikro-Konsent", "type": "prozess", "color": "blue", "x": 890, "y": 710 },
+
+    { "id": "n24", "label": "Kultur & Haltung", "type": "prinzip", "color": "green", "x": 250, "y": 820 },
+    { "id": "n25", "label": "Reflexionsgefässe", "type": "praxis", "color": "purple", "x": 470, "y": 820 },
+    { "id": "n26", "label": "Moderation & Intervision", "type": "prozess", "color": "blue", "x": 680, "y": 820 },
+    { "id": "n27", "label": "Verantwortungszuschreibung", "type": "ergebnis", "color": "green", "x": 890, "y": 820 }
   ],
+
   "edges": [
-    { "from": "n1", "to": "n7", "label": "macht nötig", "storyId": "story-rychenberg" },
-    { "from": "n2", "to": "n4", "label": "etabliert", "storyId": "story-rychenberg" },
-    { "from": "n1", "to": "n2", "label": "Stresstest für", "storyId": "story-rychenberg" },
-    { "from": "n4", "to": "n6", "label": "verhindert", "storyId": "story-rychenberg" },
-    { "from": "n2", "to": "n3", "label": "etabliert", "storyId": "story-rychenberg" },
-    { "from": "n4", "to": "n5", "label": "sichert", "storyId": "story-rychenberg" }
+    { "from": "n1", "to": "n2", "label": "testet Stabilität von" },
+    { "from": "n1", "to": "n7", "label": "macht nötig" },
+    { "from": "n2", "to": "n3", "label": "etabliert" },
+    { "from": "n2", "to": "n4", "label": "operationalisiert" },
+    { "from": "n3", "to": "n5", "label": "sichert" },
+    { "from": "n4", "to": "n5", "label": "sichert" },
+    { "from": "n4", "to": "n6", "label": "verhindert" },
+    { "from": "n7", "to": "n2", "label": "stärkt Anwendung von" },
+
+    { "from": "n8", "to": "n9", "label": "klärt Zuständigkeiten" },
+    { "from": "n9", "to": "n10", "label": "führt zu" },
+    { "from": "n10", "to": "n11", "label": "ermöglicht" },
+    { "from": "n11", "to": "n2", "label": "unterstützt Umsetzung von" },
+
+    { "from": "n12", "to": "n13", "label": "basiert auf" },
+    { "from": "n13", "to": "n14", "label": "setzt voraus" },
+    { "from": "n14", "to": "n15", "label": "verhindert" },
+    { "from": "n12", "to": "n2", "label": "wird verhandelt durch" },
+
+    { "from": "n16", "to": "n17", "label": "koordiniert" },
+    { "from": "n17", "to": "n18", "label": "sichert Rückkopplung" },
+    { "from": "n18", "to": "n19", "label": "ermöglicht" },
+    { "from": "n17", "to": "n19", "label": "reduziert Abhängigkeiten" },
+
+    { "from": "n20", "to": "n21", "label": "umgesetzt durch" },
+    { "from": "n21", "to": "n22", "label": "findet Ausdruck in" },
+    { "from": "n22", "to": "n23", "label": "nutzt Prinzip" },
+    { "from": "n23", "to": "n20", "label": "stärkt Partizipation" },
+
+    { "from": "n24", "to": "n25", "label": "manifestiert sich in" },
+    { "from": "n25", "to": "n26", "label": "unterstützt" },
+    { "from": "n26", "to": "n27", "label": "führt zu" },
+    { "from": "n24", "to": "n27", "label": "rahmt" },
+
+    { "from": "n2", "to": "n24", "label": "prägt Haltung" },
+    { "from": "n7", "to": "n25", "label": "benötigt" },
+    { "from": "n26", "to": "n5", "label": "institutionalisiert" },
+    { "from": "n19", "to": "n5", "label": "stärkt" },
+    { "from": "n11", "to": "n15", "label": "ermöglicht" },
+    { "from": "n14", "to": "n27", "label": "unterstützt Verantwortlichkeit" },
+    { "from": "n3", "to": "n17", "label": "spiegelt Struktur in" },
+    { "from": "n20", "to": "n5", "label": "didaktisch gespiegelt in" }
   ]
 }

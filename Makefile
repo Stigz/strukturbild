@@ -1,5 +1,5 @@
 # Always run these targets (phony)
-.PHONY: all build zip deploy frontend url test clean stop-local run-local fetch-local-data import import-dir help-import validate validate-dir help-validate validate-verbose help-fix fix-person validate-refs fix-types fix-types-dir health import-story get-story-full submit-graph testdata-init smoke cleanup-smoke clean-testfiles import-rychenberg submit-graph-rychenberg smoke-rychenberg smoke-rychenberg-dev
+.PHONY: all build zip deploy frontend url test clean stop-local run-local fetch-local-data import import-dir help-import validate validate-dir help-validate validate-verbose help-fix fix-person validate-refs fix-types fix-types-dir health import-story get-story-full submit-graph testdata-init smoke cleanup-smoke clean-testfiles import-rychenberg submit-graph-rychenberg smoke-rychenberg smoke-rychenberg-dev data-pull data-push
 # --- Environment / Workspaces (dev/prod split) ---
 ENV ?= prod
 BUCKET_DEV  = strukturbild-frontend-dev-a9141bf9
@@ -271,6 +271,56 @@ get-story-full:
 	@API_URL="$$(cd terraform && terraform output -raw api_url 2>/dev/null || echo http://localhost:3000)"; \
 	echo "GET $$API_URL/api/stories/$(STORY)/full"; \
 	curl -sS "$$API_URL/api/stories/$(STORY)/full" | jq .
+
+.PHONY: data-pull
+data-pull:
+	@if [ -z "$(STORY)" ]; then echo "Usage: make ENV=$(ENV) data-pull STORY=<storyId>"; exit 1; fi
+	$(call TF_SELECT_WORKSPACE,$(ENV))
+	@API_URL="$$(cd terraform && terraform output -raw api_url 2>/dev/null || echo http://localhost:3000)"; \
+	mkdir -p Data; \
+	JQ1=$$(mktemp); JQ2=$$(mktemp); \
+	cat > "$$JQ1" <<'JQ' ; \
+	{ \
+	  story: { \
+	    storyId: .story.storyId, \
+	    schoolId: .story.schoolId, \
+	    title: .story.title, \
+	    paragraphNodeMap: (.story.paragraphNodeMap // {}) \
+	  }, \
+	  paragraphs: ((.paragraphs // []) | map({ \
+	    paragraphId, storyId, index, \
+	    title: (.title // null), \
+	    bodyMd, \
+	    citations \
+	  })) \
+	} \
+	JQ
+	cat > "$$JQ2" <<'JQ' ; \
+	{ \
+	  storyId: env.STORY, \
+	  nodes: ((.nodes // []) | map({id, label, type, color, x, y})), \
+	  edges: ((.edges // []) | map({from, to, label, type})) \
+	} \
+	JQ
+	echo "GET $$API_URL/api/stories/$(STORY)/full  -> Data/story-$(STORY).json (compact import shape)"; \
+	curl -fsS "$$API_URL/api/stories/$(STORY)/full" | jq -c -f "$$JQ1" > "Data/story-$(STORY).json"; \
+	echo "GET $$API_URL/struktur/$(STORY)         -> Data/graph-$(STORY).json (compact)"; \
+	env STORY="$(STORY)" curl -fsS "$$API_URL/struktur/$(STORY)" | env STORY="$(STORY)" jq -c -f "$$JQ2" > "Data/graph-$(STORY).json"; \
+	rm -f "$$JQ1" "$$JQ2"; \
+	echo "✅ Wrote Data/story-$(STORY).json and Data/graph-$(STORY).json"
+
+.PHONY: data-push
+data-push:
+	@if [ -z "$(STORY)" ]; then echo "Usage: make ENV=$(ENV) data-push STORY=<storyId>"; exit 1; fi
+	@if [ ! -f "Data/story-$(STORY).json" ]; then echo "❌ Missing file Data/story-$(STORY).json"; exit 1; fi
+	@if [ ! -f "Data/graph-$(STORY).json" ]; then echo "❌ Missing file Data/graph-$(STORY).json"; exit 1; fi
+	$(call TF_SELECT_WORKSPACE,$(ENV))
+	@API_URL="$$(cd terraform && terraform output -raw api_url 2>/dev/null || echo http://localhost:3000)"; \
+	echo "POST $$API_URL/api/stories/import  <= Data/story-$(STORY).json"; \
+	curl -fsS -X POST "$$API_URL/api/stories/import" -H 'Content-Type: application/json' --data-binary @"Data/story-$(STORY).json" | sed -e 's/^/  /'; \
+	echo "POST $$API_URL/submit               <= Data/graph-$(STORY).json"; \
+	curl -fsS -X POST "$$API_URL/submit" -H 'Content-Type: application/json' --data-binary @"Data/graph-$(STORY).json" | sed -e 's/^/  /'; \
+	echo "✅ Pushed story+graph for $(STORY) to $(ENV)"
 
 submit-graph:
 	@if [ -z "$(FILE)" ]; then \

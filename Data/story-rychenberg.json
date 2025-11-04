@@ -1,42 +1,93 @@
 {
   "story": {
-    "storyId": "story-rychenberg",
-    "schoolId": "rychenberg",
-    "title": "Rychenberg – Soziokratie unter Prüfstein"
+    "storyId": "story-anon",
+    "schoolId": "anon",
+    "title": "Diese Schule – Soziokratie unter Prüfstein",
+
+  "paragraphNodeMap": {
+    "para-1": ["n1", "n2"],
+    "para-2": ["n2", "n3", "n4", "n5", "n6"],
+    "para-3": ["n1", "n7"],
+    "para-4": ["n8", "n9", "n10", "n11"],
+    "para-5": ["n12", "n13", "n14", "n15"],
+    "para-6": ["n16", "n17", "n18", "n19"],
+    "para-7": ["n20", "n21", "n22", "n23"],
+    "para-8": ["n24", "n25", "n26", "n27"]
+  }
   },
   "paragraphs": [
     {
-      "paragraphId": "para-49838e65-ad43-45f2-8eed-8e67be888a36",
-      "storyId": "story-rychenberg",
+      "paragraphId": "para-1",
+      "storyId": "story-anon",
       "index": 1,
-      "bodyMd": "Am Rychenberg hat sich in den letzten Jahren eine soziokratische Ordnung etabliert, die heute gerade deshalb interessant ist, weil sie unter Führungsfluktuation auf ihre Eigenstabilität getestet wird: Mehrere Wechsel bis hin zum Wegfall der neuen Schulleitung bilden den Prüfstein, ob die Schule als System trägt — nicht nur dank einzelner Figuren (0–1). Die Ausgangsfrage lautet: Trägt die Soziokratie ohne Schulleitung als Motor? (0–1)",
+      "bodyMd": "An dieser Schule hat sich in den letzten Jahren eine soziokratische Ordnung etabliert, die heute gerade deshalb interessant ist, weil sie unter Führungsfluktuation auf ihre Eigenstabilität getestet wird: Mehrere Wechsel bis hin zum Wegfall der neuen Schulleitung bilden den Prüfstein, ob die Schule als System trägt — nicht nur dank einzelner Figuren (0–1). Die Ausgangsfrage lautet: Trägt die Soziokratie ohne Schulleitung als Motor? (0–1)",
       "citations": [
-        { "transcriptId": "rychenberg_clean", "minutes": [0, 1] }
+        { "transcriptId": "anon_clean", "minutes": [0, 1] }
       ]
     },
     {
-      "paragraphId": "para-b0ce1365-268a-49dd-9c6d-cae06bc33132",
-      "storyId": "story-rychenberg",
+      "paragraphId": "para-2",
+      "storyId": "story-anon",
       "index": 2,
       "bodyMd": "Soziokratie meint hier nicht ein loses Ideal, sondern einen klar definierten Entscheidungs- und Beteiligungsmodus: Bildformung → Meinungsrunde → Konsent. Erst werden Informationen zusammengetragen, dann spricht jede Person nacheinander, und schließlich wird auf „kein schwerwiegender Einwand“ entschieden. Dieser Ablauf de-personalisiert Entscheidungen und macht sie replizierbar (2). Die Kreisstruktur sichert, dass sich niemand entziehen kann: Jede Lehrperson gehört mindestens einem Jahrgangskreis an; „sich raushalten“ ist strukturell nicht vorgesehen (3–4). Damit bearbeitet die Schule eine Problemgeschichte: Früher trugen „ein paar wenige“, andere blieben Mitläufer — genau das soll die Struktur abschaffen (3).",
       "citations": [
-        { "transcriptId": "rychenberg_clean", "minutes": [2, 3, 4] }
+        { "transcriptId": "anon_clean", "minutes": [2, 3, 4] }
       ]
     },
     {
-      "paragraphId": "para-50014360-bb20-47ce-ae2c-9ca5fbedced0",
-      "storyId": "story-rychenberg",
+      "paragraphId": "para-3",
+      "storyId": "story-anon",
       "index": 3,
-      "bodyMd": "Mit dem Wegfall/Wechsel der Schulleitung rücken zwei operative Themen in den Fokus: Moderation verankern und Onboarding neuer Lehrpersonen. Beides soll die Selbststeuerung des Systems stärken und jene Nahtstellen schließen, an denen die Verbindlichkeit noch nicht verankert ist (1). Moderation wird ausdrücklich als Fokusthema benannt und über interne Soziokratie-Trainer:innen (mit Anbindung an ein Soziokratie-Zentrum) aufgebaut; Ziel ist Kapazitätsaufbau im Kollegium, nicht Abhängigkeit von Externen (22–23, 48–52). Viele neue LPs machen sichtbar, dass die Ordnung gelernt und geübt werden muss; Onboarding ist hier keine Formalität, sondern Teil der Schulentwicklung (1).",
+      "bodyMd": "Mit dem Wegfall oder Wechsel der Schulleitung rücken zwei operative Themen in den Fokus: Moderation verankern und Onboarding neuer Lehrpersonen. Beides soll die Selbststeuerung des Systems stärken und jene Nahtstellen schließen, an denen die Verbindlichkeit noch nicht verankert ist (1). Moderation wird ausdrücklich als Fokusthema benannt und über interne Soziokratie-Trainer:innen (mit Anbindung an ein Soziokratie-Zentrum) aufgebaut; Ziel ist Kapazitätsaufbau im Kollegium, nicht Abhängigkeit von Externen (22–23, 48–52). Viele neue Lehrpersonen machen sichtbar, dass die Ordnung gelernt und geübt werden muss; Onboarding ist hier keine Formalität, sondern Teil der Schulentwicklung (1).",
       "citations": [
-        { "transcriptId": "rychenberg_clean", "minutes": [1] },
-        { "transcriptId": "rychenberg_clean", "minutes": [22, 23, 48, 49, 50, 51, 52] }
+        { "transcriptId": "anon_clean", "minutes": [1] },
+        { "transcriptId": "anon_clean", "minutes": [22, 23, 48, 49, 50, 51, 52] }
+      ]
+    },
+    {
+      "paragraphId": "para-4",
+      "storyId": "story-anon",
+      "index": 4,
+      "bodyMd": "Governance und Zuständigkeiten sind klar ausbuchstabiert: Ein Funktionendiagramm mit Domänen klärt, was in welcher Kreisebene entschieden wird; Personalführung bleibt bei der Schulleitung, während Umsetzungs- und Alltagsfragen in den fachnahen Kreisen bearbeitet werden (4–6). Damit entsteht eine funktionale Differenzierung: Strategische und rechtliche Verantwortungen (z. B. Personal) liegen formell bei der Leitung, operative Gestaltung bei den Teams (4–6). Das schließt externe Rahmenbedingungen und Ressourcensteuerung ein — die Schule ist nicht völlig autonom, sondern klug eingebettet (4).",
+      "citations": [
+        { "transcriptId": "anon_clean", "minutes": [4, 5, 6] }
+      ]
+    },
+    {
+      "paragraphId": "para-5",
+      "storyId": "story-anon",
+      "index": 5,
+      "bodyMd": "Eine zentrale Ressource im Kontext dieser Schule sind Fördermittel für Schulen mit hohem Migrationsanteil, die an klare Prinzipien gebunden sind (z. B. Wirklogik, Transparenz, Nachvollziehbarkeit). Jahrgangs-Budgets werden mit dieser Logik verknüpft: Es gibt zusätzliche Mittel pro Jahrgang, aber: Schnapsideen ohne Begründung, Messbarkeit oder Passung zum Rahmen werden nicht finanziert (11–15). Entscheidend ist hier das „Warum“ vor dem „Was“: Mittel folgen Begründung und Wirkung, nicht Sympathie (14–15). Budgetfragen werden — wo sinnvoll — soziokratisch verhandelt; die Transparenz erhöht Akzeptanz und verhindert Vetopositionen (11–15).",
+      "citations": [
+        { "transcriptId": "anon_clean", "minutes": [11, 12, 13, 14, 15] }
+      ]
+    },
+    {
+      "paragraphId": "para-6",
+      "storyId": "story-anon",
+      "index": 6,
+      "bodyMd": "Teilzeit und Informationsfluss werden prozessual abgefedert: Ein Dienstagsfenster bündelt zentrale Treffen; Delegierte sichern die Rückkopplung zwischen Kreisen; Arbeitszeitgefäße (z. B. AK-Stunden) sorgen dafür, dass Beteiligung nicht „on top“ geschieht (17–19). Das System reduziert Abhängigkeiten von Anwesenheit einzelner und hält Beteiligung anschlussfähig (17–19).",
+      "citations": [
+        { "transcriptId": "anon_clean", "minutes": [17, 18, 19] }
+      ]
+    },
+    {
+      "paragraphId": "para-7",
+      "storyId": "story-anon",
+      "index": 7,
+      "bodyMd": "Wichtig ist, dass diese Erwachsenenlogik didaktisch gespiegelt wird: Kinder und Jugendliche übernehmen Funktionen, die auf Zeit gewählt werden (zwei Jahre), rotieren und Verantwortung sichtbar machen (19–20). In Klassenräten wird die soziokratische Form kindgerecht praktiziert: Übersicht zuerst, Themen bündeln, dann entschieden weiterarbeiten — eine Art Mikro-Konsent im Klassenmaßstab (30–33). Die Beteiligung der Schüler:innen ist echt: Es geht nicht um „Dürfen wir auch mal reden?“, sondern um mittragende Entscheidungen — bis hin zu Budget- und Ressourcenfragen auf kleinem Niveau („Was machen wir mit diesen drei Franken?“) (47–48).",
+      "citations": [
+        { "transcriptId": "anon_clean", "minutes": [19, 20, 30, 31, 32, 33, 47, 48] }
+      ]
+    },
+    {
+      "paragraphId": "para-8",
+      "storyId": "story-anon",
+      "index": 8,
+      "bodyMd": "In der Kultur- und Haltungsdimension ist nicht das vage „Wir-Gefühl“ zentral, sondern eine normierte Verbindlichkeit: Mitwirkung ist Pflicht (durch Kreise), Entscheidung ist geordnet (durch Konsent), Reflexion ist institutionalisiert (durch Moderation, Trainer:innen, Intervision) (3–4, 22–23, 51–52). Die Schule entpersonalisiert Verantwortung, ohne sie zu diffundieren: Statt „alle irgendwie“ wird klar zugeschrieben, wer wann wo warum beteiligt ist (4–6, 17–19, 22–23).",
+      "citations": [
+        { "transcriptId": "anon_clean", "minutes": [3, 4, 5, 6, 17, 18, 19, 22, 23, 51, 52] }
       ]
     }
-  ],
-  "paragraphNodeMap": {
-    "para-49838e65-ad43-45f2-8eed-8e67be888a36": ["n1", "n2"],
-    "para-b0ce1365-268a-49dd-9c6d-cae06bc33132": ["n2", "n3", "n4"],
-    "para-50014360-bb20-47ce-ae2c-9ca5fbedced0": ["n1", "n7"]
-  }
+  ]
 }

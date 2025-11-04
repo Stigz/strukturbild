@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,6 +21,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/google/uuid"
 )
+
+var _ storyapi.DynamoClient = (*dynamodb.Client)(nil)
 
 func normalizePath(p string) string {
 	if idx := strings.Index(p, "/struktur/"); idx >= 0 {
@@ -57,6 +60,7 @@ type Node struct {
 }
 
 type Edge struct {
+	ID     string `json:"id,omitempty"`
 	From   string `json:"from"`
 	To     string `json:"to"`
 	Label  string `json:"label"`
@@ -161,6 +165,7 @@ func getHandler(ctx context.Context, request events.APIGatewayProxyRequest) (eve
 			})
 		} else {
 			edges = append(edges, Edge{
+				ID:     item.ID,
 				From:   item.From,
 				To:     item.To,
 				Label:  item.Label,
@@ -234,7 +239,57 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 
 	log.Printf("✅ Received strukturbild for story: %s with %d nodes", sb.StoryID, len(sb.Nodes))
 
-	// Use global svc directly
+	// Determine next sequential edge id "eN" for this story by scanning existing edges
+	nextEdgeNum := 1
+	{
+		var startKey map[string]types.AttributeValue
+		for {
+			qres, qerr := svc.Query(ctx, &dynamodb.QueryInput{
+				TableName:              aws.String(tableName),
+				KeyConditionExpression: aws.String("storyId = :sid"),
+				ExpressionAttributeValues: map[string]types.AttributeValue{
+					":sid": &types.AttributeValueMemberS{Value: sb.StoryID},
+				},
+				ExclusiveStartKey: startKey,
+			})
+			if qerr != nil {
+				log.Printf("ℹ️ edge id pre-scan failed for %s: %v", sb.StoryID, qerr)
+				break
+			}
+			for _, it := range qres.Items {
+				var cur DBItem
+				if err := attributevalue.UnmarshalMap(it, &cur); err != nil {
+					continue
+				}
+				if cur.IsNode {
+					continue
+				}
+				if strings.HasPrefix(cur.ID, "e") && len(cur.ID) > 1 {
+					if n, err := strconv.Atoi(cur.ID[1:]); err == nil && n >= nextEdgeNum {
+						nextEdgeNum = n + 1
+					}
+				}
+			}
+			if qres.LastEvaluatedKey == nil || len(qres.LastEvaluatedKey) == 0 {
+				break
+			}
+			startKey = qres.LastEvaluatedKey
+		}
+	}
+	// Pre-assign eN to any incoming edge without a valid eN id
+	for i := range sb.Edges {
+		id := sb.Edges[i].ID
+		valid := false
+		if strings.HasPrefix(id, "e") && len(id) > 1 {
+			if _, err := strconv.Atoi(id[1:]); err == nil {
+				valid = true
+			}
+		}
+		if !valid {
+			sb.Edges[i].ID = "e" + strconv.Itoa(nextEdgeNum)
+			nextEdgeNum++
+		}
+	}
 
 	var dbItems []DBItem
 
@@ -259,8 +314,9 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	}
 
 	for _, edge := range sb.Edges {
+		eid := edge.ID
 		dbItems = append(dbItems, DBItem{
-			ID:        uuid.New().String(),
+			ID:        eid,
 			StoryID:   sb.StoryID,
 			Label:     edge.Label,
 			Detail:    edge.Detail,
@@ -395,6 +451,119 @@ func deleteHandler(ctx context.Context, request events.APIGatewayProxyRequest) (
 	}, nil
 }
 
+// updateEdgeHandler updates label/detail/type on an edge item (isNode=false).
+// Route: PATCH /api/stories/{storyId}/edges/{edgeId}
+func updateEdgeHandler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	storyID := req.PathParameters["storyId"]
+	edgeID := req.PathParameters["edgeId"]
+	if storyID == "" || edgeID == "" {
+		return events.APIGatewayProxyResponse{StatusCode: 400, Headers: corsHeaders(), Body: "Missing storyId or edgeId"}, nil
+	}
+
+	// Minimal patch payload
+	type edgePatchInput struct {
+		Label  *string `json:"label"`
+		Detail *string `json:"detail"`
+		Type   *string `json:"type"`
+	}
+	var in edgePatchInput
+	if err := json.Unmarshal([]byte(req.Body), &in); err != nil {
+		return events.APIGatewayProxyResponse{StatusCode: 400, Headers: corsHeaders(), Body: "Invalid JSON"}, nil
+	}
+
+	// Fetch existing edge (isNode=false) via exact key
+	qres, err := svc.Query(ctx, &dynamodb.QueryInput{
+		TableName:              aws.String(tableName),
+		KeyConditionExpression: aws.String("storyId = :sid AND id = :eid"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":sid": &types.AttributeValueMemberS{Value: storyID},
+			":eid": &types.AttributeValueMemberS{Value: edgeID},
+		},
+		Limit:          aws.Int32(1),
+		ConsistentRead: aws.Bool(true),
+	})
+	if err != nil || len(qres.Items) == 0 {
+		log.Printf("❌ Edge not found for update %s/%s: %v", storyID, edgeID, err)
+		return events.APIGatewayProxyResponse{StatusCode: 404, Headers: corsHeaders(), Body: "Edge not found"}, nil
+	}
+
+	var cur DBItem
+	if err := attributevalue.UnmarshalMap(qres.Items[0], &cur); err != nil {
+		log.Printf("❌ Unmarshal existing edge failed: %v", err)
+		return events.APIGatewayProxyResponse{StatusCode: 500, Headers: corsHeaders(), Body: "Failed to read edge"}, nil
+	}
+	if cur.IsNode {
+		return events.APIGatewayProxyResponse{StatusCode: 400, Headers: corsHeaders(), Body: "Target item is not an edge"}, nil
+	}
+
+	// Apply patch fields
+	if in.Label != nil {
+		cur.Label = *in.Label
+	}
+	if in.Detail != nil {
+		cur.Detail = *in.Detail
+	}
+	if in.Type != nil {
+		cur.Type = *in.Type
+	}
+	cur.Timestamp = time.Now().Format(time.RFC3339)
+
+	av, err := attributevalue.MarshalMap(cur)
+	if err != nil {
+		log.Printf("❌ Marshal edge for update failed: %v", err)
+		return events.APIGatewayProxyResponse{StatusCode: 500, Headers: corsHeaders(), Body: "Failed to update edge"}, nil
+	}
+	if _, err := svc.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName: aws.String(tableName),
+		Item:      av,
+	}); err != nil {
+		log.Printf("❌ PutItem edge update failed: %v", err)
+		return events.APIGatewayProxyResponse{StatusCode: 500, Headers: corsHeaders(), Body: "Failed to update edge"}, nil
+	}
+
+	return events.APIGatewayProxyResponse{
+		StatusCode: 200,
+		Headers:    corsHeaders(),
+		Body:       "Edge updated",
+	}, nil
+}
+
+// deleteEdgeHandler deletes a single edge by (storyId, edgeId) with an edge-only condition.
+// Route: DELETE /api/stories/{storyId}/edges/{edgeId}
+func deleteEdgeHandler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	storyId := req.PathParameters["storyId"]
+	edgeId := req.PathParameters["edgeId"]
+	if storyId == "" || edgeId == "" {
+		return events.APIGatewayProxyResponse{
+			StatusCode: 400,
+			Headers:    corsHeaders(),
+			Body:       "Missing storyId or edgeId",
+		}, nil
+	}
+
+	_, err := svc.DeleteItem(ctx, &dynamodb.DeleteItemInput{
+		TableName: aws.String(tableName),
+		Key: map[string]types.AttributeValue{
+			"storyId": &types.AttributeValueMemberS{Value: storyId},
+			"id":      &types.AttributeValueMemberS{Value: edgeId},
+		},
+		// Ensure we only delete edges
+		ConditionExpression:       aws.String("attribute_exists(storyId) AND attribute_exists(id) AND isNode = :false"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{":false": &types.AttributeValueMemberBOOL{Value: false}},
+	})
+	if err != nil {
+		log.Printf("❌ Failed to delete edge %s/%s: %v", storyId, edgeId, err)
+		return events.APIGatewayProxyResponse{StatusCode: 500, Headers: corsHeaders(), Body: "Failed to delete edge"}, nil
+	}
+
+	log.Printf("✅ Deleted edge storyId=%s, edgeId=%s", storyId, edgeId)
+	return events.APIGatewayProxyResponse{
+		StatusCode: 200,
+		Headers:    corsHeaders(),
+		Body:       "Edge deleted",
+	}, nil
+}
+
 func handleStoryRoutes(ctx context.Context, req events.APIGatewayProxyRequest, method, path string) (events.APIGatewayProxyResponse, error) {
 	if storySvc == nil {
 		return events.APIGatewayProxyResponse{StatusCode: 500, Headers: corsHeaders(), Body: "Story service not initialised"}, nil
@@ -429,6 +598,16 @@ func handleStoryRoutes(ctx context.Context, req events.APIGatewayProxyRequest, m
 		paragraphID := parts[1]
 		req.PathParameters = map[string]string{"paragraphId": paragraphID}
 		return storySvc.HandleCreateDetail(ctx, req)
+	case method == "PATCH" && len(parts) == 4 && parts[0] == "stories" && parts[2] == "edges":
+		storyID := parts[1]
+		edgeID := parts[3]
+		req.PathParameters = map[string]string{"storyId": storyID, "edgeId": edgeID}
+		return updateEdgeHandler(ctx, req)
+	case method == "DELETE" && len(parts) == 4 && parts[0] == "stories" && parts[2] == "edges":
+		storyID := parts[1]
+		edgeID := parts[3]
+		req.PathParameters = map[string]string{"storyId": storyID, "edgeId": edgeID}
+		return deleteEdgeHandler(ctx, req)
 	default:
 		return events.APIGatewayProxyResponse{StatusCode: 404, Headers: corsHeaders(), Body: "Not Found"}, nil
 	}

@@ -3,11 +3,11 @@
     "storyId": "story-rychenberg",
     "schoolId": "rychenberg",
     "title": "Rychenberg – Soziokratie unter Prüfstein",
-        "paragraphNodeMap": {
-      "para-49838e65-ad43-45f2-8eed-8e67be888a36": ["n1","n2"],
-      "para-b0ce1365-268a-49dd-9c6d-cae06bc33132": ["n2","n3","n4"],
-      "para-50014360-bb20-47ce-ae2c-9ca5fbedced0": ["n1","n7"]
-        }
+    "paragraphNodeMap": {
+      "para-49838e65-ad43-45f2-8eed-8e67be888a36": ["n1", "n2"],
+      "para-b0ce1365-268a-49dd-9c6d-cae06bc33132": ["n2", "n3", "n4"],
+      "para-50014360-bb20-47ce-ae2c-9ca5fbedced0": ["n1", "n7"]
+    }
   },
   "paragraphs": [
     {
