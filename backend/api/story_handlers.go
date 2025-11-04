@@ -209,6 +209,74 @@ func (s *StoryService) HandleCreateParagraph(ctx context.Context, req events.API
 	return s.jsonResponse(200, map[string]string{"id": paragraphID})
 }
 
+func (s *StoryService) HandleUpdateStory(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	storyID := req.PathParameters["storyId"]
+	if strings.TrimSpace(storyID) == "" {
+		return s.errorResponse(400, "Missing storyId in path")
+	}
+
+	var payload struct {
+		Title            *string              `json:"title"`
+		ParagraphNodeMap *map[string][]string `json:"paragraphNodeMap"`
+	}
+	if err := json.Unmarshal([]byte(req.Body), &payload); err != nil {
+		return s.errorResponse(400, "Invalid JSON payload")
+	}
+
+	story, paragraphs, _, err := s.fetchStoryBundle(ctx, storyID)
+	if err != nil {
+		return s.errorResponse(404, err.Error())
+	}
+
+	updated := story
+	changed := false
+
+	if payload.Title != nil {
+		newTitle := strings.TrimSpace(*payload.Title)
+		if newTitle == "" {
+			return s.errorResponse(400, "title cannot be empty")
+		}
+		if newTitle != story.Title {
+			updated.Title = newTitle
+			changed = true
+		}
+	}
+
+	if cleaned, apply := sanitizeParagraphNodeMap(payload.ParagraphNodeMap, paragraphs); apply {
+		updated.ParagraphNodeMap = cleaned
+		changed = true
+	}
+
+	if !changed {
+		return s.jsonResponse(200, map[string]string{"id": storyID})
+	}
+
+	if strings.TrimSpace(updated.CreatedAt) == "" {
+		updated.CreatedAt = time.Now().UTC().Format(time.RFC3339)
+	}
+	updated.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+
+	record := storyRecord{
+		StoryKey: fmt.Sprintf("STORY#%s", storyID),
+		ID:       fmt.Sprintf("STORY#%s", storyID),
+		Story:    updated,
+	}
+
+	item, err := attributevalue.MarshalMap(record)
+	if err != nil {
+		return s.errorResponse(500, "Failed to marshal story")
+	}
+
+	if _, err := s.dynamo.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName: &s.tableName,
+		Item:      item,
+	}); err != nil {
+		return s.errorResponse(500, fmt.Sprintf("Failed to save story: %v", err))
+	}
+
+	return s.jsonResponse(200, map[string]string{"id": storyID})
+}
+
 func (s *StoryService) HandleUpdateParagraph(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	paragraphID := req.PathParameters["paragraphId"]
 	if paragraphID == "" {
@@ -727,6 +795,48 @@ func chooseNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func sanitizeParagraphNodeMap(input *map[string][]string, paragraphs []Paragraph) (map[string][]string, bool) {
+	if input == nil {
+		return nil, false
+	}
+	if *input == nil {
+		return nil, true
+	}
+
+	valid := make(map[string]struct{}, len(paragraphs))
+	for _, p := range paragraphs {
+		valid[p.ParagraphID] = struct{}{}
+	}
+
+	cleaned := make(map[string][]string)
+	for pid, ids := range *input {
+		if _, ok := valid[pid]; !ok {
+			continue
+		}
+		seen := make(map[string]struct{}, len(ids))
+		out := make([]string, 0, len(ids))
+		for _, id := range ids {
+			trimmed := strings.TrimSpace(id)
+			if trimmed == "" {
+				continue
+			}
+			if _, dup := seen[trimmed]; dup {
+				continue
+			}
+			seen[trimmed] = struct{}{}
+			out = append(out, trimmed)
+		}
+		if len(out) > 0 {
+			cleaned[pid] = out
+		}
+	}
+
+	if len(cleaned) == 0 {
+		return nil, true
+	}
+	return cleaned, true
 }
 
 func awsString(v string) *string {

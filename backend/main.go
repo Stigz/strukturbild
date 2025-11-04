@@ -409,6 +409,10 @@ func handleStoryRoutes(ctx context.Context, req events.APIGatewayProxyRequest, m
 		return storySvc.HandleCreateStory(ctx, req)
 	case method == "POST" && trimmed == "stories/import":
 		return storySvc.HandleImportStory(ctx, req)
+	case method == "PATCH" && len(parts) == 2 && parts[0] == "stories":
+		storyID := parts[1]
+		req.PathParameters = map[string]string{"storyId": storyID}
+		return storySvc.HandleUpdateStory(ctx, req)
 	case method == "GET" && trimmed == "stories":
 		return storySvc.HandleListStories(ctx, req)
 	case method == "POST" && len(parts) == 3 && parts[0] == "stories" && parts[2] == "paragraphs":

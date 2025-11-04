@@ -232,6 +232,114 @@ func TestListStories(t *testing.T) {
 	}
 }
 
+func TestUpdateStoryParagraphNodeMap(t *testing.T) {
+	setupTestServices()
+	ctx := context.Background()
+
+	storyReq := events.APIGatewayProxyRequest{Body: `{"schoolId":"rychenberg","title":"Story Title"}`}
+	resp, err := storySvc.HandleCreateStory(ctx, storyReq)
+	if err != nil || resp.StatusCode != 200 {
+		t.Fatalf("create story failed: %v status=%d", err, resp.StatusCode)
+	}
+	var storyRes map[string]string
+	if err := json.Unmarshal([]byte(resp.Body), &storyRes); err != nil {
+		t.Fatalf("unmarshal story response: %v", err)
+	}
+	storyID := storyRes["id"]
+
+	// create two paragraphs to obtain stable IDs
+	storySvc.HandleCreateParagraph(ctx, events.APIGatewayProxyRequest{Body: `{"index":1,"bodyMd":"First","citations":[]}`,
+		PathParameters: map[string]string{"storyId": storyID}})
+	storySvc.HandleCreateParagraph(ctx, events.APIGatewayProxyRequest{Body: `{"index":2,"bodyMd":"Second","citations":[]}`,
+		PathParameters: map[string]string{"storyId": storyID}})
+
+	fullResp, _ := storySvc.HandleGetFullStory(ctx, events.APIGatewayProxyRequest{PathParameters: map[string]string{"storyId": storyID}})
+	var full storyapi.StoryFull
+	if err := json.Unmarshal([]byte(fullResp.Body), &full); err != nil {
+		t.Fatalf("unmarshal full story: %v", err)
+	}
+	if len(full.Paragraphs) != 2 {
+		t.Fatalf("expected 2 paragraphs")
+	}
+
+	p0 := full.Paragraphs[0].ParagraphID
+	p1 := full.Paragraphs[1].ParagraphID
+
+	updatePayload := map[string]interface{}{
+		"paragraphNodeMap": map[string][]string{
+			p0: []string{" node-a ", "node-a", "node-b"},
+			p1: []string{"node-c"},
+		},
+	}
+	body, _ := json.Marshal(updatePayload)
+	resp, err = storySvc.HandleUpdateStory(ctx, events.APIGatewayProxyRequest{
+		Body:           string(body),
+		PathParameters: map[string]string{"storyId": storyID},
+	})
+	if err != nil || resp.StatusCode != 200 {
+		t.Fatalf("update story failed: %v status=%d", err, resp.StatusCode)
+	}
+
+	full = storyapi.StoryFull{}
+	fullResp, _ = storySvc.HandleGetFullStory(ctx, events.APIGatewayProxyRequest{PathParameters: map[string]string{"storyId": storyID}})
+	if err := json.Unmarshal([]byte(fullResp.Body), &full); err != nil {
+		t.Fatalf("unmarshal story after update: %v", err)
+	}
+	if len(full.Story.ParagraphNodeMap) != 2 {
+		t.Fatalf("expected 2 paragraph node entries, got %d", len(full.Story.ParagraphNodeMap))
+	}
+	nodes0 := full.Story.ParagraphNodeMap[p0]
+	if len(nodes0) != 2 || nodes0[0] != "node-a" || nodes0[1] != "node-b" {
+		t.Fatalf("unexpected nodes for %s: %+v", p0, nodes0)
+	}
+
+	// remove second mapping and ensure cleanup works
+	updatePayload = map[string]interface{}{
+		"paragraphNodeMap": map[string][]string{
+			p0: []string{"node-a"},
+			p1: []string{},
+		},
+	}
+	body, _ = json.Marshal(updatePayload)
+	resp, err = storySvc.HandleUpdateStory(ctx, events.APIGatewayProxyRequest{
+		Body:           string(body),
+		PathParameters: map[string]string{"storyId": storyID},
+	})
+	if err != nil || resp.StatusCode != 200 {
+		t.Fatalf("update story cleanup failed: %v status=%d", err, resp.StatusCode)
+	}
+
+	full = storyapi.StoryFull{}
+	fullResp, _ = storySvc.HandleGetFullStory(ctx, events.APIGatewayProxyRequest{PathParameters: map[string]string{"storyId": storyID}})
+	if err := json.Unmarshal([]byte(fullResp.Body), &full); err != nil {
+		t.Fatalf("unmarshal story after cleanup: %v", err)
+	}
+	if len(full.Story.ParagraphNodeMap) != 1 {
+		t.Fatalf("expected 1 paragraph node entry, got map %+v", full.Story.ParagraphNodeMap)
+	}
+	if _, ok := full.Story.ParagraphNodeMap[p1]; ok {
+		t.Fatalf("expected paragraph %s to be removed", p1)
+	}
+
+	// clear all entries
+	resp, err = storySvc.HandleUpdateStory(ctx, events.APIGatewayProxyRequest{
+		Body:           `{"paragraphNodeMap":{}}`,
+		PathParameters: map[string]string{"storyId": storyID},
+	})
+	if err != nil || resp.StatusCode != 200 {
+		t.Fatalf("final cleanup failed: %v status=%d", err, resp.StatusCode)
+	}
+
+	full = storyapi.StoryFull{}
+	fullResp, _ = storySvc.HandleGetFullStory(ctx, events.APIGatewayProxyRequest{PathParameters: map[string]string{"storyId": storyID}})
+	if err := json.Unmarshal([]byte(fullResp.Body), &full); err != nil {
+		t.Fatalf("unmarshal story after final cleanup: %v", err)
+	}
+	if len(full.Story.ParagraphNodeMap) != 0 {
+		t.Fatalf("expected paragraph node map cleared, got %+v", full.Story.ParagraphNodeMap)
+	}
+}
+
 func TestHandleStoryRoutesWithStagePrefix(t *testing.T) {
 	setupTestServices()
 	ctx := context.Background()
