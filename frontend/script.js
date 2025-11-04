@@ -150,19 +150,6 @@ document.addEventListener("DOMContentLoaded", () => {
             <label for="fieldLabel">Label</label>
             <input id="fieldLabel" type="text" placeholder="Label">
           </div>
-
-          <!-- NEW: editable endpoints for edges -->
-          <div class="row">
-            <div>
-              <label for="fieldFrom">Source (from)</label>
-              <input id="fieldFrom" type="text" placeholder="source node id">
-            </div>
-            <div>
-              <label for="fieldTo">Target (to)</label>
-              <input id="fieldTo" type="text" placeholder="target node id">
-            </div>
-          </div>
-
           <div class="row">
             <div>
               <label for="fieldType">Type</label>
@@ -478,8 +465,6 @@ function nextEdgeId() {
   const fieldTime = document.getElementById("fieldTime");
   const fieldColor = document.getElementById("fieldColor");
   const fieldDetail = document.getElementById("fieldDetail");
-  const fieldFrom = document.getElementById("fieldFrom");
-  const fieldTo = document.getElementById("fieldTo");
   const saveInspectorBtn = document.getElementById("saveInspectorBtn");
   const cancelInspectorBtn = document.getElementById("cancelInspectorBtn");
   const deleteInspectorBtn = document.getElementById("deleteInspectorBtn");
@@ -662,16 +647,14 @@ deleteSelectedBtn?.addEventListener('click', async () => {
     // Delete ONLY edges if any are selected
     for (let i = 0; i < selectedEdges.length; i++) {
       const e = selectedEdges[i];
--      const from = e.data('source');
--      const to = e.data('target');
--      const eid = canonicalEdgeId(from, to);
-+      const eid = e.id();
-+      const from = e.data('source');
-+      const to   = e.data('target');
+      const eid = e.id();
+      const from = e.data('source');
+      const to = e.data('target');
+      const edgeId = canonicalEdgeId(from, to);
 
       try {
         const res = await fetch(
-          `${API_BASE_URL}/api/stories/${encodeURIComponent(storyId)}/edges/${encodeURIComponent(eid)}`,
+          `${API_BASE_URL}/api/stories/${encodeURIComponent(storyId)}/edges/${encodeURIComponent(edgeId)}`,
           { method: 'DELETE' }
         );
         if (!res.ok) {
@@ -833,22 +816,6 @@ connectSelectedBtn?.addEventListener('click', async () => {
     if (fieldTime) fieldTime.value = (d.time && /^\d{4}-\d{2}-\d{2}$/.test(d.time)) ? d.time : '';
     if (fieldColor) fieldColor.value = d.color || '';
     if (fieldDetail) fieldDetail.value = d.detail || '';
-
-    // Populate/enable endpoint fields only for edges
-    if (fieldFrom && fieldTo) {
-      if (!isNode) {
-        fieldFrom.value = el.data('source') || '';
-        fieldTo.value = el.data('target') || '';
-        fieldFrom.disabled = false;
-        fieldTo.disabled = false;
-      } else {
-        fieldFrom.value = '';
-        fieldTo.value = '';
-        fieldFrom.disabled = true;
-        fieldTo.disabled = true;
-      }
-    }
-
     if (inspector) {
       inspector.classList.remove('hidden');
       const cyEl = document.getElementById('cy');
@@ -868,23 +835,24 @@ connectSelectedBtn?.addEventListener('click', async () => {
     const isNode = inspectorSelection.isNode();
     const storyId = storyInput.value.trim();
     if (!storyId) { alert('Set Story ID first'); return; }
-    const pos = isNode ? inspectorSelection.position() : null;
-    const payload = {
-      storyId,
-      nodes: isNode ? [{
-        id: inspectorSelection.id(),
-        label: fieldLabel.value.trim(),
-        type: fieldType.value,
-        time: fieldTime.value || '',
-        color: fieldColor.value.trim(),
-        detail: fieldDetail.value.trim(),
-        x: Math.round(pos.x), y: Math.round(pos.y),
-        storyId, isNode: true
-      }] : [],
-      edges: [] // edges handled below for the edge-branch (we persist with explicit id/from/to)
-    };
-    // Sync in-memory dataset
+
     if (isNode) {
+      const pos = inspectorSelection.position();
+      const payload = {
+        storyId,
+        nodes: [{
+          id: inspectorSelection.id(),
+          label: fieldLabel.value.trim(),
+          type: fieldType.value,
+          time: fieldTime.value || '',
+          color: fieldColor.value.trim(),
+          detail: fieldDetail.value.trim(),
+          x: Math.round(pos.x), y: Math.round(pos.y),
+          storyId, isNode: true
+        }],
+        edges: []
+      };
+      // Sync in-memory dataset
       const idx = lastNodes.findIndex(n => n.id === inspectorSelection.id());
       const posxy = pos ? { x: Math.round(pos.x), y: Math.round(pos.y) } : {};
       const updated = {
@@ -899,16 +867,32 @@ connectSelectedBtn?.addEventListener('click', async () => {
       };
       if (idx >= 0) { lastNodes[idx] = { ...lastNodes[idx], ...updated }; }
       else { lastNodes.push(updated); }
+      // Update UI immediately
+      inspectorSelection.data({
+        label: fieldLabel.value.trim(),
+        type: fieldType.value,
+        time: fieldTime.value || '',
+        color: fieldColor.value.trim(),
+        detail: fieldDetail.value.trim()
+      });
+      try {
+        // Nodes: keep existing submit
+        await fetch(`${API_BASE_URL}/submit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } catch (e) {
+        console.error('Save inspector failed', e);
+      }
     } else {
-      // Read new endpoints from inspector fields (preserve edge id)
-      const newFrom = (fieldFrom && String(fieldFrom.value || '').trim()) || inspectorSelection.data('source');
-      const newTo   = (fieldTo && String(fieldTo.value || '').trim()) || inspectorSelection.data('target');
-      const eid     = inspectorSelection.id();
-      const idx     = lastEdges.findIndex(e => e.id === eid || (e.from === inspectorSelection.data('source') && e.to === inspectorSelection.data('target')));
+      const from = inspectorSelection.data('source');
+      const to = inspectorSelection.data('target');
+      const eid = inspectorSelection.id();
+      const idx = lastEdges.findIndex(e => e.id === eid || (e.from === from && e.to === to));
       const updated = {
         id: eid,
-        from: newFrom,
-        to: newTo,
+        from, to,
         label: fieldLabel.value.trim(),
         type: fieldType.value,
         detail: fieldDetail.value.trim()
@@ -916,13 +900,7 @@ connectSelectedBtn?.addEventListener('click', async () => {
       if (idx >= 0) { lastEdges[idx] = { ...lastEdges[idx], ...updated }; }
       else { lastEdges.push(updated); }
 
-      // Update the cytoscape element endpoints in the UI immediately
-      try {
-        inspectorSelection.data('source', newFrom);
-        inspectorSelection.data('target', newTo);
-      } catch {}
-
-      // Persist with explicit id + endpoints
+      // Persist with the same id
       try {
         await fetch(`${API_BASE_URL}/submit`, {
           method: 'POST',
@@ -933,42 +911,91 @@ connectSelectedBtn?.addEventListener('click', async () => {
         console.error('Save inspector failed', e);
       }
     }
-    // Update UI immediately
-    inspectorSelection.data({
-      label: fieldLabel.value.trim(),
-      type: fieldType.value,
-      time: fieldTime.value || '',
-      color: fieldColor.value.trim(),
-      detail: fieldDetail.value.trim()
-    });
-    if (isNode) {
-  inspectorSelection.data('hasXY', true);
-}
-    try {
-      if (isNode) {
-        // Nodes: keep existing submit
-        await fetch(`${API_BASE_URL}/submit`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-      }
-    } catch (e) {
-      console.error('Save inspector failed', e);
-    }
     reRender();
   }
+  function persistPositions() {
+    if (!cy) return;
+    const storyId = storyInput.value.trim();
+    if (!storyId) { alert('Set Story ID first'); return; }
+    const nodes = cy.nodes().map(n => {
+      const p = n.position();
+      return {
+        id: n.id(),
+        label: n.data('label')||'',
+        type: n.data('type')||'',
+        time: n.data('time')||'',
+        color: n.data('color')||'',
+        detail: n.data('detail')||'',
+        x: Math.round(p.x), y: Math.round(p.y),
+        storyId, isNode: true
+      };
+    });
+    // Keep in-memory positions in sync
+    nodes.forEach(ns => {
+      const i = lastNodes.findIndex(n => n.id === ns.id);
+      if (i >= 0) lastNodes[i] = { ...lastNodes[i], ...ns };
+    });
+    // Mark saved XY locally so subsequent layouts don't move them
+cy.nodes().forEach(n => n.data('hasXY', true));
+    fetch(`${API_BASE_URL}/submit`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ storyId, nodes, edges: [] })
+    });
+  }
+  function applyLayout(kind) {
+    if (!cy) return;
+    if (kind === 'cose') {
+      cy.layout(getCoseOptions()).run();
+    } else if (kind === 'grid') {
+      cy.layout({ name: 'grid', rows: undefined }).run();
+    } else if (kind === 'timeline') {
+      const nodes = cy.nodes();
+      const times = nodes.map(n => Date.parse(n.data('time')||'')).filter(v => !Number.isNaN(v));
+      if (times.length === 0) return;
+      const min = Math.min(...times), max = Math.max(...times);
+      const span = Math.max(1, max - min);
+      const width = document.getElementById('cy').clientWidth - 360; // some right margin for panel
+      const x0 = 40, x1 = Math.max(200, width - 40);
+      const typeY = (t) => {
+        switch (toCanonicalType(t)) {
+          case 'praxis': return 150;
+          case 'beschäftigung': return 300;
+          case 'prozess': return 450;
+          case 'schwierigkeit': return 600;
+          case 'ergebnis': return 750;
+          default: return 900;
+        }
+      };
+      nodes.forEach(n => {
+        const t = Date.parse(n.data('time')||'');
+        if (!Number.isNaN(t)) {
+          const ratio = (t - min) / span;
+          const x = Math.round(x0 + ratio * (x1 - x0));
+          n.position({ x, y: typeY(n.data('type')) });
+        }
+      });
+      cy.fit();
+    } else if (kind === 'compass') {
+      const t = Math.max(0, Math.min(1, layoutStrength/100));
+      const spacing = 0.8 + t * 0.6;
+      layoutCompass(spacing);
+    } else {
+      // 'free' - do nothing
+    }
+  }
+
+  saveInspectorBtn?.addEventListener('click', saveInspector);
+  cancelInspectorBtn?.addEventListener('click', closeInspector);
+  deleteInspectorBtn?.addEventListener('click', deleteInspector);
   async function deleteInspector() {
     if (!inspectorSelection) return;
     const storyId = storyInput.value.trim();
     if (!storyId) { alert('Set Story ID first'); return; }
 
     if (inspectorSelection.isEdge && inspectorSelection.isEdge()) {
-      // Ensure only the edge operation runs; don't act on any selected nodes.
-      try { cy.$('node:selected').unselect(); } catch {}
       const eid = inspectorSelection.id();
       const from = inspectorSelection.data('source');
-      const to   = inspectorSelection.data('target');
+      const to = inspectorSelection.data('target');
 
       try {
         const res = await fetch(
