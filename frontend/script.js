@@ -765,45 +765,29 @@ lastEdges = lastEdges.map(e => {
   }
 
 // REPLACE the whole connectSelectedBtn listener with this:
-connectSelectedBtn?.addEventListener('click', async () => {
-  if (!cy) return;
-  const sel = cy.$('node:selected');
-  if (sel.length !== 2) { alert('Select exactly two nodes'); return; }
-
-  const a = sel[0].id();
-  const b = sel[1].id();
-  const storyId = (storyInput?.value || '').trim();
-  if (!storyId) { alert('Set Story ID first'); return; }
-
-  // Prevent duplicate edges between the same pair
-  const existing = cy.$(`edge[source = "${a}"][target = "${b}"]`);
-  if (existing && existing.length) { existing.select(); return; }
-
-  // Assign sequential id e1, e2, ...
-  const eid = nextEdgeId();
-  const newEdge = { id: eid, from: a, to: b, label: '' };
-
-  // Persist
-  try {
-    const res = await fetch(`${API_BASE_URL}/submit`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ storyId, nodes: [], edges: [newEdge] })
-    });
-    if (!res.ok) {
-      const t = await res.text().catch(() => '');
-      throw new Error(`Persist edge failed (${res.status}) ${t}`);
-    }
-  } catch (err) {
-    console.error('Persist edge failed', err);
-    alert(`Persist edge failed: ${err.message || err}`);
-    return;
+connectSelectedBtn?.addEventListener('click', () => {
+  if (!window.cy) return;
+  connectMode = !connectMode;
+  const btn = document.getElementById('connectSelectedBtn') || document.getElementById('connectBtn');
+  if (connectMode) {
+    anchorNodeId = null;
+    if (btn) btn.setAttribute('data-active', 'true');
+  } else {
+    cancelConnectMode();
   }
-
-  // Update local state + UI
-  lastEdges.push({ id: eid, from: a, to: b, label: '', type: '', detail: '' });
-  reRender();
 });
+
+// --- Connect mode (first click = from, second = to) ---
+let connectMode = false;
+let anchorNodeId = null;
+
+function cancelConnectMode() {
+  try { if (anchorNodeId && window.cy) { window.cy.$id(anchorNodeId).removeClass('connect-source'); } } catch {}
+  anchorNodeId = null;
+  connectMode = false;
+  const btn = document.getElementById('connectSelectedBtn') || document.getElementById('connectBtn');
+  if (btn) btn.setAttribute('data-active', 'false');
+}
 
   function openInspector(el) {
     inspectorSelection = el;
@@ -1180,6 +1164,10 @@ cy.nodes().forEach(n => n.data('hasXY', true));
             selector: 'node:selected',
             style: { 'border-width': 3, 'border-color': '#FFD700' }
           },
+          {
+            selector: 'node.connect-source',
+            style: { 'border-width': 4, 'border-color': '#22c55e' }
+          },
 
           // --- Paragraph focus styles (NEW) ---
           {
@@ -1371,7 +1359,70 @@ function applyParagraphFocus(nodeIds) {
 
       // Add node mode: click on background to place new node
       cy.on('tap', (evt) => {
+        // --- Connect mode: node taps (first = from, second = to) ---
+        if (connectMode && evt.target && evt.target.isNode && evt.target.isNode()) {
+          const pressed = evt.target;
+          const nodeId = pressed.id();
+          const storyId = (storyInput?.value || '').trim();
+          if (!storyId) { alert('Set Story ID first'); cancelConnectMode(); return; }
+
+          // First tap anchors the "from" node
+          if (!anchorNodeId) {
+            anchorNodeId = nodeId;
+            try { pressed.addClass('connect-source'); } catch {}
+            // Let inspector/selection continue normally
+            return;
+          }
+
+          // Second tap: connect anchor -> this node (ignore self-loops)
+          if (nodeId === anchorNodeId) {
+            // Do nothing on self; keep anchor so user can choose a different target
+            return;
+          }
+
+          // Avoid duplicate directed edges
+          try {
+            const dup = window.cy && window.cy.$ ? window.cy.$(`edge[source = "${anchorNodeId}"][target = "${nodeId}"]`) : null;
+            if (dup && dup.length) {
+              dup.select();
+              try { window.cy.$id(anchorNodeId).removeClass('connect-source'); } catch {}
+              cancelConnectMode();
+              return;
+            }
+          } catch {}
+
+          const eid = nextEdgeId();
+          const newEdge = { id: eid, from: anchorNodeId, to: nodeId, label: '' };
+
+          (async () => {
+            try {
+              const res = await fetch(`${API_BASE_URL}/submit`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ storyId, nodes: [], edges: [ newEdge ] })
+              });
+              if (!res.ok) {
+                const t = await res.text().catch(() => '');
+                throw new Error(`Persist edge failed (${res.status}) ${t}`);
+              }
+
+              // Update local state/UI
+              lastEdges.push({ ...newEdge, type: '', detail: '' });
+              try { window.cy.$id(anchorNodeId).removeClass('connect-source'); } catch {}
+              cancelConnectMode();
+              reRender();
+            } catch (err) {
+              console.error('Persist edge failed', err);
+              alert(`Persist edge failed: ${err.message || err}`);
+              try { window.cy.$id(anchorNodeId).removeClass('connect-source'); } catch {}
+              cancelConnectMode();
+            }
+          })();
+
+          return; // handled connect interaction
+        }
         if (evt.target === cy) {
+          if (connectMode) { cancelConnectMode(); }
           if (addNodeMode) {
             const p = evt.position;
             const id = nextNodeId();
