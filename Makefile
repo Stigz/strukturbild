@@ -282,13 +282,39 @@ data-pull:
 	STORY_ID="$(STORY)"
 	
 	mkdir -p Data
-	STORY_FILTER='{ story: { storyId: .story.storyId, schoolId: .story.schoolId, title: .story.title, paragraphNodeMap: (.story.paragraphNodeMap // {}) }, paragraphs: ((.paragraphs // []) | map({ paragraphId, storyId, index, title: (.title // null), bodyMd, citations })) }'
-	GRAPH_FILTER='{ storyId: $story_id, nodes: ((.nodes // []) | map({id, label, type, color, x, y})), edges: ((.edges // []) | map({from, to, label, type})) }'
+	STORY_JQ="$$(mktemp)"
+	GRAPH_JQ="$$(mktemp)"
+	trap 'rm -f "$$STORY_JQ" "$$GRAPH_JQ"' EXIT
+	
+	cat >"$$STORY_JQ" <<-'JQ'
+	{
+	  story: {
+	    storyId: .story.storyId,
+	    schoolId: .story.schoolId,
+	    title: .story.title,
+	    paragraphNodeMap: (.story.paragraphNodeMap // {})
+	  },
+	  paragraphs: ((.paragraphs // []) | map({
+	    paragraphId, storyId, index,
+	    title: (.title // null),
+	    bodyMd,
+	    citations
+	  }))
+	}
+	JQ
+	
+	cat >"$$GRAPH_JQ" <<-'JQ'
+	{
+	  storyId: $story_id,
+	  nodes: ((.nodes // []) | map({id, label, type, color, x, y})),
+	  edges: ((.edges // []) | map({from, to, label, type}))
+	}
+	JQ
 	
 	echo "GET $$API_URL/api/stories/$$STORY_ID/full  -> Data/story-$$STORY_ID.json (compact import shape)"
-	curl -fsS "$$API_URL/api/stories/$$STORY_ID/full" | jq -c "$$STORY_FILTER" > "Data/story-$$STORY_ID.json"
+	curl -fsS "$$API_URL/api/stories/$$STORY_ID/full" | jq -c -f "$$STORY_JQ" > "Data/story-$$STORY_ID.json"
 	echo "GET $$API_URL/struktur/$$STORY_ID         -> Data/graph-$$STORY_ID.json (compact)"
-	curl -fsS "$$API_URL/struktur/$$STORY_ID" | jq -c --arg story_id "$$STORY_ID" "$$GRAPH_FILTER" > "Data/graph-$$STORY_ID.json"
+	curl -fsS "$$API_URL/struktur/$$STORY_ID" | jq -c --arg story_id "$$STORY_ID" -f "$$GRAPH_JQ" > "Data/graph-$$STORY_ID.json"
 	echo "✅ Wrote Data/story-$$STORY_ID.json and Data/graph-$$STORY_ID.json"
 	BASH
 
