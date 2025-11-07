@@ -276,38 +276,47 @@ get-story-full:
 data-pull:
 	@if [ -z "$(STORY)" ]; then echo "Usage: make ENV=$(ENV) data-pull STORY=<storyId>"; exit 1; fi
 	$(call TF_SELECT_WORKSPACE,$(ENV))
-	@API_URL="$$(cd terraform && terraform output -raw api_url 2>/dev/null || echo http://localhost:3000)"; \
-	mkdir -p Data; \
-	JQ1=$$(mktemp); JQ2=$$(mktemp); \
-	cat > "$$JQ1" <<'JQ' ; \
-	{ \
-	  story: { \
-	    storyId: .story.storyId, \
-	    schoolId: .story.schoolId, \
-	    title: .story.title, \
-	    paragraphNodeMap: (.story.paragraphNodeMap // {}) \
-	  }, \
-	  paragraphs: ((.paragraphs // []) | map({ \
-	    paragraphId, storyId, index, \
-	    title: (.title // null), \
-	    bodyMd, \
-	    citations \
-	  })) \
-	} \
+	@bash <<-'BASH'
+	set -euo pipefail
+	API_URL="$$(cd terraform && terraform output -raw api_url 2>/dev/null || echo http://localhost:3000)"
+	STORY_ID="$(STORY)"
+	
+	mkdir -p Data
+	JQ1=$$(mktemp)
+	JQ2=$$(mktemp)
+	
+	cat > "$${JQ1}" <<'JQ'
+	{
+	  story: {
+	    storyId: .story.storyId,
+	    schoolId: .story.schoolId,
+	    title: .story.title,
+	    paragraphNodeMap: (.story.paragraphNodeMap // {})
+	  },
+	  paragraphs: ((.paragraphs // []) | map({
+	    paragraphId, storyId, index,
+	    title: (.title // null),
+	    bodyMd,
+	    citations
+	  }))
+	}
 	JQ
-	cat > "$$JQ2" <<'JQ' ; \
-	{ \
-	  storyId: env.STORY, \
-	  nodes: ((.nodes // []) | map({id, label, type, color, x, y})), \
-	  edges: ((.edges // []) | map({from, to, label, type})) \
-	} \
+	
+	cat > "$${JQ2}" <<'JQ'
+	{
+	  storyId: env.STORY_ID,
+	  nodes: ((.nodes // []) | map({id, label, type, color, x, y})),
+	  edges: ((.edges // []) | map({from, to, label, type}))
+	}
 	JQ
-	echo "GET $$API_URL/api/stories/$(STORY)/full  -> Data/story-$(STORY).json (compact import shape)"; \
-	curl -fsS "$$API_URL/api/stories/$(STORY)/full" | jq -c -f "$$JQ1" > "Data/story-$(STORY).json"; \
-	echo "GET $$API_URL/struktur/$(STORY)         -> Data/graph-$(STORY).json (compact)"; \
-	env STORY="$(STORY)" curl -fsS "$$API_URL/struktur/$(STORY)" | env STORY="$(STORY)" jq -c -f "$$JQ2" > "Data/graph-$(STORY).json"; \
-	rm -f "$$JQ1" "$$JQ2"; \
-	echo "✅ Wrote Data/story-$(STORY).json and Data/graph-$(STORY).json"
+	
+	echo "GET $$API_URL/api/stories/$$STORY_ID/full  -> Data/story-$$STORY_ID.json (compact import shape)"
+	curl -fsS "$$API_URL/api/stories/$$STORY_ID/full" | jq -c -f "$$JQ1" > "Data/story-$$STORY_ID.json"
+	echo "GET $$API_URL/struktur/$$STORY_ID         -> Data/graph-$$STORY_ID.json (compact)"
+	STORY_ID="$$STORY_ID" curl -fsS "$$API_URL/struktur/$$STORY_ID" | STORY_ID="$$STORY_ID" jq -c -f "$$JQ2" > "Data/graph-$$STORY_ID.json"
+	rm -f "$$JQ1" "$$JQ2"
+	echo "✅ Wrote Data/story-$$STORY_ID.json and Data/graph-$$STORY_ID.json"
+	BASH
 
 .PHONY: data-push
 data-push:
