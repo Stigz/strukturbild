@@ -282,11 +282,10 @@ data-pull:
 	STORY_ID="$(STORY)"
 	
 	mkdir -p Data
-	STORY_JQ="$$(mktemp)"
-	GRAPH_JQ="$$(mktemp)"
-	trap 'rm -f "$$STORY_JQ" "$$GRAPH_JQ"' EXIT
+	JQ1=$$(mktemp)
+	JQ2=$$(mktemp)
 	
-	cat >"$$STORY_JQ" <<-'JQ'
+	cat > "$${JQ1}" <<'JQ'
 	{
 	  story: {
 	    storyId: .story.storyId,
@@ -303,18 +302,19 @@ data-pull:
 	}
 	JQ
 	
-	cat >"$$GRAPH_JQ" <<-'JQ'
+	cat > "$${JQ2}" <<'JQ'
 	{
-	  storyId: $story_id,
+	  storyId: env.STORY_ID,
 	  nodes: ((.nodes // []) | map({id, label, type, color, x, y})),
 	  edges: ((.edges // []) | map({from, to, label, type}))
 	}
 	JQ
 	
 	echo "GET $$API_URL/api/stories/$$STORY_ID/full  -> Data/story-$$STORY_ID.json (compact import shape)"
-	curl -fsS "$$API_URL/api/stories/$$STORY_ID/full" | jq -c -f "$$STORY_JQ" > "Data/story-$$STORY_ID.json"
+	curl -fsS "$$API_URL/api/stories/$$STORY_ID/full" | jq -c -f "$$JQ1" > "Data/story-$$STORY_ID.json"
 	echo "GET $$API_URL/struktur/$$STORY_ID         -> Data/graph-$$STORY_ID.json (compact)"
-	curl -fsS "$$API_URL/struktur/$$STORY_ID" | jq -c --arg story_id "$$STORY_ID" -f "$$GRAPH_JQ" > "Data/graph-$$STORY_ID.json"
+	STORY_ID="$$STORY_ID" curl -fsS "$$API_URL/struktur/$$STORY_ID" | STORY_ID="$$STORY_ID" jq -c -f "$$JQ2" > "Data/graph-$$STORY_ID.json"
+	rm -f "$$JQ1" "$$JQ2"
 	echo "✅ Wrote Data/story-$$STORY_ID.json and Data/graph-$$STORY_ID.json"
 	BASH
 
