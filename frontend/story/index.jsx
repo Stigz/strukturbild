@@ -117,13 +117,6 @@
       skipNextAutoFocusRef.current = false;
       temporarilyDisableAutoFocus();
       setFocusedParaId(paraId);
-      if (el && typeof el.scrollIntoView === "function") {
-        try {
-          el.scrollIntoView({ behavior: "smooth", block: "center" });
-        } catch (err) {
-          el.scrollIntoView(true);
-        }
-      }
     }, [temporarilyDisableAutoFocus]);
 
     useEffect(() => {
