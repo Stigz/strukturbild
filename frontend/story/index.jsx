@@ -1,6 +1,6 @@
 /* global React, ReactDOM, marked */
 (() => {
-  const { useEffect, useState, useCallback } = React;
+  const { useEffect, useState, useCallback, useRef } = React;
 
   // Util: safe decode & build API base
   const API_BASE = (window.STRUKTURBILD_API_URL || "").replace(/\/+$/, "");
@@ -37,6 +37,117 @@
     const [savingParagraph, setSavingParagraph] = useState(false);
     const [nodeMapDrafts, setNodeMapDrafts] = useState({});
     const [savingNodesFor, setSavingNodesFor] = useState(null);
+
+    const paragraphRefs = useRef({});
+    const allowScrollFocusRef = useRef(true);
+    const focusRestoreTimeoutRef = useRef(null);
+    const skipNextAutoFocusRef = useRef(false);
+    const focusedRef = useRef(focusedParaId);
+
+    useEffect(() => {
+      focusedRef.current = focusedParaId;
+    }, [focusedParaId]);
+
+    const handleParagraphRef = useCallback((paraId, node) => {
+      if (!paragraphRefs.current) paragraphRefs.current = {};
+      if (node) {
+        paragraphRefs.current[paraId] = node;
+      } else {
+        delete paragraphRefs.current[paraId];
+      }
+    }, []);
+
+    const pickCenteredParagraph = useCallback(() => {
+      if (!paragraphRefs.current) return null;
+      const viewportHeight = window.innerHeight || document.documentElement?.clientHeight || 0;
+      if (!viewportHeight) return null;
+      const viewportCenter = viewportHeight / 2;
+      let bestId = null;
+      let bestDistance = Infinity;
+      Object.entries(paragraphRefs.current).forEach(([pid, node]) => {
+        if (!node || typeof node.getBoundingClientRect !== "function") return;
+        const rect = node.getBoundingClientRect();
+        if (rect.bottom <= 0 || rect.top >= viewportHeight) return;
+        const paraCenter = rect.top + (rect.height / 2);
+        const distance = Math.abs(paraCenter - viewportCenter);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestId = pid;
+        }
+      });
+      return bestId;
+    }, []);
+
+    const restoreAutoFocus = useCallback(() => {
+      allowScrollFocusRef.current = true;
+      focusRestoreTimeoutRef.current = null;
+      if (skipNextAutoFocusRef.current) {
+        skipNextAutoFocusRef.current = false;
+        return;
+      }
+      const candidate = pickCenteredParagraph();
+      if (candidate && focusedRef.current !== candidate) {
+        setFocusedParaId(candidate);
+      }
+    }, [pickCenteredParagraph]);
+
+    const temporarilyDisableAutoFocus = useCallback(() => {
+      allowScrollFocusRef.current = false;
+      if (focusRestoreTimeoutRef.current) {
+        window.clearTimeout(focusRestoreTimeoutRef.current);
+      }
+      focusRestoreTimeoutRef.current = window.setTimeout(restoreAutoFocus, 600);
+    }, [restoreAutoFocus]);
+
+    useEffect(() => () => {
+      if (focusRestoreTimeoutRef.current) {
+        window.clearTimeout(focusRestoreTimeoutRef.current);
+      }
+    }, []);
+
+    const handleParagraphClick = useCallback((paraId) => {
+      const isAlreadyFocused = focusedRef.current === paraId;
+      const el = paragraphRefs.current?.[paraId] || null;
+      if (isAlreadyFocused) {
+        skipNextAutoFocusRef.current = true;
+        setFocusedParaId(null);
+        temporarilyDisableAutoFocus();
+        return;
+      }
+      skipNextAutoFocusRef.current = false;
+      temporarilyDisableAutoFocus();
+      setFocusedParaId(paraId);
+      if (el && typeof el.scrollIntoView === "function") {
+        try {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        } catch (err) {
+          el.scrollIntoView(true);
+        }
+      }
+    }, [temporarilyDisableAutoFocus]);
+
+    useEffect(() => {
+      function handleScrollFocus() {
+        if (!allowScrollFocusRef.current) return;
+        const candidate = pickCenteredParagraph();
+        if (candidate && focusedRef.current !== candidate) {
+          setFocusedParaId(candidate);
+        }
+      }
+      window.addEventListener("scroll", handleScrollFocus, { passive: true });
+      handleScrollFocus();
+      return () => {
+        window.removeEventListener("scroll", handleScrollFocus);
+      };
+    }, [pickCenteredParagraph]);
+
+    useEffect(() => {
+      if (!allowScrollFocusRef.current) return;
+      const candidate = pickCenteredParagraph();
+      if (candidate && focusedRef.current !== candidate) {
+        setFocusedParaId(candidate);
+      }
+    }, [paragraphs, pickCenteredParagraph]);
 
     const reloadStory = useCallback(async () => {
       if (!storyId) return;
@@ -392,14 +503,20 @@
               ? marked.parse(p.bodyMd)
               : (p.bodyMd || "");
             const nodeDraftValue = getNodeDraftValue(p.paragraphId);
+            const trimmedTitle = (p.title || "").trim();
             return (
               <article
                 key={p.paragraphId}
                 className={`story-paragraph-card${active ? " active" : ""}`}
-                onClick={() => setFocusedParaId(focusedParaId === p.paragraphId ? null : p.paragraphId)}
+                onClick={() => handleParagraphClick(p.paragraphId)}
+                data-paragraph-id={p.paragraphId}
+                ref={node => handleParagraphRef(p.paragraphId, node)}
               >
                 <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
-                  <h2 style={{ margin: 0 }}>§{p.index || "?"}</h2>
+                  <h2 style={{ margin: 0 }}>
+                    §{p.index || "?"}
+                    {trimmedTitle ? `: ${trimmedTitle}` : ""}
+                  </h2>
                   <button
                     type="button"
                     onClick={ev => { ev.stopPropagation(); startEditParagraph(p); }}
