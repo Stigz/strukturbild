@@ -1,3 +1,4 @@
+SHELL := /bin/bash
 # Always run these targets (phony)
 .PHONY: all build zip deploy frontend url test clean stop-local run-local fetch-local-data import import-dir help-import validate validate-dir help-validate validate-verbose help-fix fix-person validate-refs fix-types fix-types-dir health import-story get-story-full submit-graph testdata-init smoke cleanup-smoke clean-testfiles import-rychenberg submit-graph-rychenberg smoke-rychenberg smoke-rychenberg-dev data-pull data-push
 # --- Environment / Workspaces (dev/prod split) ---
@@ -276,47 +277,21 @@ get-story-full:
 data-pull:
 	@if [ -z "$(STORY)" ]; then echo "Usage: make ENV=$(ENV) data-pull STORY=<storyId>"; exit 1; fi
 	$(call TF_SELECT_WORKSPACE,$(ENV))
-	@bash <<-'BASH'
-	set -euo pipefail
-	API_URL="$$(cd terraform && terraform output -raw api_url 2>/dev/null || echo http://localhost:3000)"
-	STORY_ID="$(STORY)"
-	
-	mkdir -p Data
-	JQ1=$$(mktemp)
-	JQ2=$$(mktemp)
-	
-	cat > "$${JQ1}" <<'JQ'
-	{
-	  story: {
-	    storyId: .story.storyId,
-	    schoolId: .story.schoolId,
-	    title: .story.title,
-	    paragraphNodeMap: (.story.paragraphNodeMap // {})
-	  },
-	  paragraphs: ((.paragraphs // []) | map({
-	    paragraphId, storyId, index,
-	    title: (.title // null),
-	    bodyMd,
-	    citations
-	  }))
-	}
-	JQ
-	
-	cat > "$${JQ2}" <<'JQ'
-	{
-	  storyId: env.STORY_ID,
-	  nodes: ((.nodes // []) | map({id, label, type, color, x, y})),
-	  edges: ((.edges // []) | map({from, to, label, type}))
-	}
-	JQ
-	
-	echo "GET $$API_URL/api/stories/$$STORY_ID/full  -> Data/story-$$STORY_ID.json (compact import shape)"
-	curl -fsS "$$API_URL/api/stories/$$STORY_ID/full" | jq -c -f "$$JQ1" > "Data/story-$$STORY_ID.json"
-	echo "GET $$API_URL/struktur/$$STORY_ID         -> Data/graph-$$STORY_ID.json (compact)"
-	STORY_ID="$$STORY_ID" curl -fsS "$$API_URL/struktur/$$STORY_ID" | STORY_ID="$$STORY_ID" jq -c -f "$$JQ2" > "Data/graph-$$STORY_ID.json"
-	rm -f "$$JQ1" "$$JQ2"
-	echo "✅ Wrote Data/story-$$STORY_ID.json and Data/graph-$$STORY_ID.json"
-	BASH
+	@API_URL="$$(cd terraform && terraform output -raw api_url 2>/dev/null || echo http://localhost:3000)"; \
+	  STORY_ID="$(STORY)"; \
+	  mkdir -p Data; \
+	  echo "API_URL=$$API_URL"; \
+	  echo "STORY_ID=$$STORY_ID"; \
+	  echo "GET $$API_URL/api/stories/$$STORY_ID/full  -> Data/story-$$STORY_ID.json (compact import shape)"; \
+	  curl -fsS "$$API_URL/api/stories/$$STORY_ID/full" \
+	    | jq -c '{story:{storyId:.story.storyId,schoolId:.story.schoolId,title:.story.title,paragraphNodeMap:(.story.paragraphNodeMap // {})},paragraphs:((.paragraphs // []) | map({paragraphId,storyId,index,title:(.title // null),bodyMd,citations}))}' \
+	    > "Data/story-$$STORY_ID.json"; \
+	  echo "GET $$API_URL/struktur/$$STORY_ID         -> Data/graph-$$STORY_ID.json (compact)"; \
+	  STORY_ENV="$$STORY_ID"; \
+	  STORY_ID="$$STORY_ID" curl -fsS "$$API_URL/struktur/$$STORY_ID" \
+	    | STORY_ID="$$STORY_ENV" jq -c '{storyId:env.STORY_ID,nodes:((.nodes // []) | map({id,label,type,color,x,y})),edges:((.edges // []) | map({from,to,label,type}))}' \
+	    > "Data/graph-$$STORY_ID.json"; \
+	  echo "✅ Wrote Data/story-$$STORY_ID.json and Data/graph-$$STORY_ID.json"
 
 .PHONY: data-push
 data-push:
