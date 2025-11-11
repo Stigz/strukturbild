@@ -1263,16 +1263,66 @@ cy.nodes().forEach(n => n.data('hasXY', true));
   }
 
   // 2) Helper to apply focus
-function applyParagraphFocus(nodeIds) {
-  if (!window.cy) return;
-  const cyInstance = window.cy;
-  cyInstance.elements().style('opacity', 1);   // reset every time
-  if (!Array.isArray(nodeIds) || nodeIds.length === 0) return;
-  const focusSet = new Set(nodeIds);
-  cyInstance.elements().style('opacity', 0.5);
-  cyInstance.nodes().filter(n => focusSet.has(n.id())).style('opacity', 1);
-  cyInstance.edges().filter(e => focusSet.has(e.data('source')) || focusSet.has(e.data('target'))).style('opacity', 1);
-}
+  function focusViewportOnNodes(cyInstance, nodesToFocus) {
+    if (!cyInstance || !nodesToFocus || nodesToFocus.length === 0) return;
+
+    const padding = 80;
+    const viewportWidth = typeof cyInstance.width === 'function' ? cyInstance.width() : 0;
+    const viewportHeight = typeof cyInstance.height === 'function' ? cyInstance.height() : 0;
+
+    if (!viewportWidth || !viewportHeight) {
+      try { cyInstance.fit(nodesToFocus, padding); } catch (_) {}
+      return;
+    }
+
+    const bbox = nodesToFocus.boundingBox();
+    const safeWidth = Math.max(bbox.w, 30);
+    const safeHeight = Math.max(bbox.h, 30);
+    const paddedWidth = safeWidth + padding * 2;
+    const paddedHeight = safeHeight + padding * 2;
+
+    let targetZoom = Math.min(viewportWidth / paddedWidth, viewportHeight / paddedHeight);
+    if (!Number.isFinite(targetZoom) || targetZoom <= 0) {
+      try { cyInstance.fit(nodesToFocus, padding); } catch (_) {}
+      return;
+    }
+
+    if (typeof cyInstance.maxZoom === 'function') {
+      const maxZoom = cyInstance.maxZoom();
+      if (Number.isFinite(maxZoom)) targetZoom = Math.min(targetZoom, maxZoom);
+    }
+    if (typeof cyInstance.minZoom === 'function') {
+      const minZoom = cyInstance.minZoom();
+      if (Number.isFinite(minZoom)) targetZoom = Math.max(targetZoom, minZoom);
+    }
+
+    try { cyInstance.stop(true); } catch (_) {}
+    try {
+      cyInstance.animate(
+        {
+          center: { eles: nodesToFocus },
+          zoom: targetZoom
+        },
+        { duration: 450, easing: 'ease-in-out' }
+      );
+    } catch (_) {
+      try { cyInstance.fit(nodesToFocus, padding); } catch (err) { console.warn('cy.focusViewport fallback failed', err); }
+    }
+  }
+
+  function applyParagraphFocus(nodeIds) {
+    if (!window.cy) return;
+    const cyInstance = window.cy;
+    cyInstance.elements().style('opacity', 1);   // reset every time
+    if (!Array.isArray(nodeIds) || nodeIds.length === 0) return;
+    const focusSet = new Set(nodeIds);
+    cyInstance.elements().style('opacity', 0.5);
+    const nodesToFocus = cyInstance.nodes().filter(n => focusSet.has(n.id()));
+    const edgesToFocus = cyInstance.edges().filter(e => focusSet.has(e.data('source')) || focusSet.has(e.data('target')));
+    nodesToFocus.style('opacity', 1);
+    edgesToFocus.style('opacity', 1);
+    focusViewportOnNodes(cyInstance, nodesToFocus);
+  }
   window.applyParagraphFocus = applyParagraphFocus;
 
   // 3) Bind once
