@@ -43,6 +43,7 @@
     const focusRestoreTimeoutRef = useRef(null);
     const skipNextAutoFocusRef = useRef(false);
     const focusedRef = useRef(focusedParaId);
+    const pendingScrollRef = useRef(false);
 
     useEffect(() => {
       focusedRef.current = focusedParaId;
@@ -107,7 +108,6 @@
 
     const handleParagraphClick = useCallback((paraId) => {
       const isAlreadyFocused = focusedRef.current === paraId;
-      const el = paragraphRefs.current?.[paraId] || null;
       if (isAlreadyFocused) {
         skipNextAutoFocusRef.current = true;
         setFocusedParaId(null);
@@ -116,8 +116,83 @@
       }
       skipNextAutoFocusRef.current = false;
       temporarilyDisableAutoFocus();
+      pendingScrollRef.current = true;
       setFocusedParaId(paraId);
     }, [temporarilyDisableAutoFocus]);
+
+    useEffect(() => {
+      if (!focusedParaId) {
+        pendingScrollRef.current = false;
+        return;
+      }
+      if (!pendingScrollRef.current) return;
+
+      let cancelled = false;
+
+      function scrollToParagraph() {
+        if (cancelled) return;
+        const el = paragraphRefs.current?.[focusedParaId] || null;
+        if (!el) {
+          pendingScrollRef.current = false;
+          return;
+        }
+
+        let scrolled = false;
+        if (typeof el.scrollIntoView === "function") {
+          try {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+            scrolled = true;
+          } catch (err) {
+            try {
+              el.scrollIntoView(true);
+              scrolled = true;
+            } catch (err2) {
+              // ignore and fall back to manual scroll
+            }
+          }
+        }
+
+        if (!scrolled && typeof window !== "undefined") {
+          const rect = typeof el.getBoundingClientRect === "function" ? el.getBoundingClientRect() : null;
+          if (rect) {
+            const doc = typeof document !== "undefined" ? document : null;
+            const viewportHeight = window.innerHeight || doc?.documentElement?.clientHeight || 0;
+            const offset = viewportHeight ? (viewportHeight / 2) - (rect.height / 2) : 0;
+            const targetTop = (window.pageYOffset || window.scrollY || 0) + rect.top - offset;
+            try {
+              window.scrollTo({ top: targetTop, behavior: "smooth" });
+              scrolled = true;
+            } catch (err3) {
+              window.scrollTo(0, targetTop);
+              scrolled = true;
+            }
+          }
+        }
+
+        pendingScrollRef.current = false;
+      }
+
+      const scheduleScroll = () => {
+        if (cancelled) return;
+        if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+          window.requestAnimationFrame(() => {
+            if (cancelled) return;
+            window.requestAnimationFrame(() => {
+              if (cancelled) return;
+              scrollToParagraph();
+            });
+          });
+        } else {
+          scrollToParagraph();
+        }
+      };
+
+      scheduleScroll();
+
+      return () => {
+        cancelled = true;
+      };
+    }, [focusedParaId]);
 
     useEffect(() => {
       function handleScrollFocus() {
@@ -260,7 +335,10 @@
             targetId = null;
           }
           await reloadStory();
-          if (targetId) setFocusedParaId(targetId);
+          if (targetId) {
+            pendingScrollRef.current = true;
+            setFocusedParaId(targetId);
+          }
         } else {
           const updatePayload = {
             storyId: sid,
@@ -282,7 +360,10 @@
             // ignore JSON parse issues
           }
           await reloadStory();
-          if (targetId) setFocusedParaId(targetId);
+          if (targetId) {
+            pendingScrollRef.current = true;
+            setFocusedParaId(targetId);
+          }
         }
         cancelParagraphEdit();
       } catch (e) {
@@ -357,6 +438,7 @@
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         await reloadStory();
+        pendingScrollRef.current = true;
         setFocusedParaId(paragraphId);
       } catch (e) {
         setActionError(String(e.message || e));
